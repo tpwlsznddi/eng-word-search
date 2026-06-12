@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>문제 만들기</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        input { padding: 10px; width: 300px; font-size: 16px; margin-bottom: 10px; }
+        button { padding: 10px 20px; font-size: 16px; background-color: #e91e63; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+<h2>🛠️ 문제 만들기 (방장용)</h2>
+<p>단어를 입력하고 전송 버튼을 누르세요.</p>
+<input type="text" id="words" value="APPLE, JAVA, SPRING" placeholder="단어 입력 (쉼표로 구분)">
+<br>
+<button onclick="generateAndSend()">중앙 화면으로 문제 전송!</button>
+
+<script>
+    const socket = io();
+    const size = 10;
+
+    function generateAndSend() {
+        const inputStr = document.getElementById('words').value;
+        const tempWords = inputStr.toUpperCase().split(',').map(w => w.trim()).filter(w => w.length > 0);
+
+        let tempGrid = Array(size).fill(null).map(() => Array(size).fill('-'));
+        const directions = [ {x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1} ];
+
+        tempWords.forEach(word => {
+            let placed = false, attempts = 0;
+            while (!placed && attempts < 100) {
+                let dir = directions[Math.floor(Math.random() * directions.length)];
+                let startX = Math.floor(Math.random() * size);
+                let startY = Math.floor(Math.random() * size);
+                let canPlace = true;
+
+                if (startX + (dir.x * word.length) > size || startY + (dir.y * word.length) > size) canPlace = false;
+                else {
+                    for (let i = 0; i < word.length; i++) {
+                        let nx = startX + (dir.x * i), ny = startY + (dir.y * i);
+                        if (tempGrid[ny][nx] !== '-' && tempGrid[ny][nx] !== word[i]) { canPlace = false; break; }
+                    }
+                }
+                if (canPlace) {
+                    for (let i = 0; i < word.length; i++) tempGrid[startY + (dir.y * i)][startX + (dir.x * i)] = word[i];
+                    placed = true;
+                }
+                attempts++;
+            }
+        });
+
+        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        for (let y = 0; y < size; y++) {
+            for (let x = 0; x < size; x++) {
+                if (tempGrid[y][x] === '-') tempGrid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)];
+            }
+        }
+
+        socket.emit('newPuzzle', { grid: tempGrid, words: tempWords });
+        alert('성공! 중앙 화면(디스플레이)과 플레이어들에게 퍼즐이 전송되었습니다.');
+    }
+</script>
+</body>
+</html>
