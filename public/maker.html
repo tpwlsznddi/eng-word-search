@@ -2,74 +2,176 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>방장 전용 (문제 생성)</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; }
-        .maker-box { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: inline-block; }
-        input { padding: 10px; font-size: 16px; width: 300px; border: 2px solid #673ab7; border-radius: 6px; }
-        button { padding: 10px 20px; font-size: 16px; background-color: #673ab7; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; margin: 0; }
+        .maker-box { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: inline-block; text-align: left; width: 90%; max-width: 450px; box-sizing: border-box; }
+        
+        .input-group { margin-bottom: 15px; }
+        label { font-weight: bold; color: #555; display: block; margin-bottom: 5px; font-size: 14px; }
+        
+        input[type="text"] { padding: 12px; font-size: 16px; width: 100%; border: 2px solid #673ab7; border-radius: 6px; box-sizing: border-box; }
+        input[type="number"] { padding: 10px; font-size: 16px; width: 80px; border: 2px solid #673ab7; border-radius: 6px; text-align: center; }
+        
+        /* 💡 추가된 단어 리스트 스타일 */
+        .word-list-container { border: 2px dashed #ccc; border-radius: 8px; padding: 10px; min-height: 60px; margin-bottom: 20px; background: #fafafa; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
+        .word-chip { display: inline-flex; align-items: center; background: #e8def8; color: #673ab7; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .chip-btn { background: none; border: none; cursor: pointer; margin-left: 6px; font-size: 12px; padding: 2px; }
+        .chip-btn:hover { transform: scale(1.2); }
+
+        .submit-btn { padding: 14px 20px; font-size: 16px; background-color: #673ab7; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; box-shadow: 0 4px 6px rgba(103,58,183,0.2); }
+        .submit-btn:hover { background-color: #512da8; }
     </style>
 </head>
 <body>
     <div class="maker-box">
-        <h2 style="color: #673ab7;">🛠️ 문제 출제 (방장 전용)</h2>
-        <p>숨길 영어 단어들을 <b>쉼표(,)</b>로 구분해서 입력하세요.</p>
-        <input type="text" id="wordInput" placeholder="예: APPLE, BANANA, CAT">
-        <br>
-        <button onclick="generatePuzzle()">퍼즐 만들기 및 전송 🚀</button>
+        <h2 style="color: #673ab7; text-align: center; margin-top: 0; margin-bottom: 20px;">🛠️ 문제 출제 (방장)</h2>
+        
+        <div class="input-group">
+            <label for="sizeInput">1. 격자 크기 (5 ~ 100):</label>
+            <input type="number" id="sizeInput" value="10" min="5" max="100"> 칸
+        </div>
+
+        <div class="input-group">
+            <label for="wordInput">2. 숨길 단어 입력 (엔터를 누르면 추가됩니다):</label>
+            <input type="text" id="wordInput" placeholder="영어 단어 입력 후 Enter" onkeydown="handleKeyPress(event)">
+        </div>
+        
+        <label>3. 등록된 단어 목록 (수정/삭제 가능):</label>
+        <div class="word-list-container" id="uiWordList"></div>
+        
+        <button class="submit-btn" onclick="generatePuzzle()">퍼즐 만들기 및 전송 🚀</button>
     </div>
 
     <script>
         const socket = io();
-        const size = 10;
+        let wordsList = []; // 💡 단어들을 저장할 배열
+
+        // 💡 엔터키 입력을 감지하는 함수 (PC 및 모바일 키보드 완료/엔터 대응)
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // 기본 엔터 동작(새로고침 등) 방지
+                addWordFromInput();
+            }
+        }
+
+        // 입력창의 단어를 리스트에 추가
+        function addWordFromInput() {
+            const inputElement = document.getElementById('wordInput');
+            let word = inputElement.value.toUpperCase().trim();
+            
+            if (word === "") return;
+            
+            // 영어 알파벳만 입력했는지 유효성 검사
+            if (/[^A-Z]/.test(word)) {
+                alert("영어 알파벳만 입력할 수 있습니다!");
+                return;
+            }
+            
+            if (wordsList.includes(word)) {
+                alert("이미 등록된 단어입니다!");
+                return;
+            }
+
+            wordsList.push(word);
+            inputElement.value = ""; // 입력창 비우기
+            renderWordChips();      // 리스트 새로고침
+        }
+
+        // 단어 삭제 기능
+        function removeWord(index) {
+            wordsList.splice(index, 1);
+            renderWordChips();
+        }
+
+        // 단어 수정 기능
+        function editWord(index) {
+            const currentWord = wordsList[index];
+            const newWord = prompt("단어를 수정해 주세요:", currentWord);
+            
+            if (newWord !== null) {
+                let formatted = newWord.toUpperCase().trim();
+                if (formatted === "") return;
+                if (/[^A-Z]/.test(formatted)) {
+                    alert("영어 알파벳만 입력 가능합니다.");
+                    return;
+                }
+                wordsList[index] = formatted;
+                renderWordChips();
+            }
+        }
+
+        // 화면에 단어 칩들을 그려주는 기능
+        function renderWordChips() {
+            const container = document.getElementById('uiWordList');
+            container.innerHTML = "";
+            
+            if (wordsList.length === 0) {
+                container.innerHTML = '<span style="color: #aaa; font-size: 13px; margin: auto;">등록된 단어가 없습니다.</span>';
+                return;
+            }
+
+            wordsList.forEach((word, index) => {
+                const chip = document.createElement('div');
+                chip.className = 'word-chip';
+                chip.innerHTML = `
+                    <span>${word}</span>
+                    <button class="chip-btn" onclick="editWord(${index})" title="수정">✏️</button>
+                    <button class="chip-btn" onclick="removeWord(${index})" title="삭제">❌</button>
+                `;
+                container.appendChild(chip);
+            });
+        }
+
+        // 초기 화면 정렬
+        renderWordChips();
 
         function generatePuzzle() {
-            const input = document.getElementById('wordInput').value.toUpperCase();
-            const words = input.split(',').map(w => w.trim()).filter(w => w.length > 0);
+            const size = parseInt(document.getElementById('sizeInput').value) || 10;
 
-            if (words.length === 0) {
-                alert("단어를 하나 이상 입력하세요!");
+            if (size < 5 || size > 100) {
+                alert("크기는 5칸부터 최대 100칸까지만 설정할 수 있습니다!");
                 return;
+            }
+            if (wordsList.length === 0) {
+                alert("최소 한 개 이상의 단어를 등록해 주세요!");
+                return;
+            }
+
+            // 격자 크기보다 긴 단어가 있는지 검사
+            for (let word of wordsList) {
+                if (word.length > size) {
+                    alert(`❌ 단어 '${word}'의 길이가 설정한 격자 크기(${size}칸)보다 깁니다! 단어를 수정하거나 격자 크기를 늘려주세요.`);
+                    return;
+                }
             }
 
             let grid = Array(size).fill(null).map(() => Array(size).fill(''));
 
-            // 💡 8가지 모든 방향을 완벽하게 정의합니다.
             const directions = [
-                [0, 1],   // 가로 정방향 (우)
-                [0, -1],  // 가로 역방향 (좌)
-                [1, 0],   // 세로 정방향 (하)
-                [-1, 0],  // 세로 역방향 (상)
-                [1, 1],   // 대각선 정방향 (우하)
-                [-1, -1], // 대각선 역방향 (좌상)
-                [1, -1],  // 대각선 (좌하)
-                [-1, 1]   // 대각선 (우상)
+                [0, 1], [0, -1], [1, 0], [-1, 0],
+                [1, 1], [-1, -1], [1, -1], [-1, 1]
             ];
 
             let successfullyPlacedWords = [];
 
-            for (let word of words) {
+            for (let word of wordsList) {
                 let placed = false;
                 let attempts = 0;
 
-                // 단어가 격자에 잘 들어갈 때까지 최대 100번 위치를 랜덤으로 바꿔가며 시도
                 while (!placed && attempts < 100) {
                     attempts++;
-                    
                     let startY = Math.floor(Math.random() * size);
                     let startX = Math.floor(Math.random() * size);
-                    
-                    // 위에서 정의한 8방향 중 하나를 랜덤으로 선택
                     let dir = directions[Math.floor(Math.random() * directions.length)];
 
                     let endY = startY + dir[0] * (word.length - 1);
                     let endX = startX + dir[1] * (word.length - 1);
 
-                    // 단어가 격자(10x10) 밖으로 튀어나가면 무효 처리하고 다시 시도
                     if (endY < 0 || endY >= size || endX < 0 || endX >= size) continue;
 
-                    // 다른 단어와 충돌(글자가 겹치는데 알파벳이 다른 경우)하는지 확인
                     let canPlace = true;
                     for (let i = 0; i < word.length; i++) {
                         let cy = startY + dir[0] * i;
@@ -80,7 +182,6 @@
                         }
                     }
 
-                    // 안전한 자리면 격자에 글자 박아넣기
                     if (canPlace) {
                         for (let i = 0; i < word.length; i++) {
                             let cy = startY + dir[0] * i;
@@ -93,7 +194,6 @@
                 }
             }
 
-            // 나머지 빈칸을 무작위 알파벳으로 가득 채우기
             const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             for (let y = 0; y < size; y++) {
                 for (let x = 0; x < size; x++) {
@@ -103,9 +203,8 @@
                 }
             }
 
-            // 완성된 퍼즐 데이터를 모든 접속자에게 전송!
-            socket.emit('newPuzzle', { grid: grid, words: successfullyPlacedWords });
-            alert("✅ 새로운 퍼즐이 모든 화면에 전송되었습니다!");
+            socket.emit('newPuzzle', { grid: grid, words: successfullyPlacedWords, size: size });
+            alert(`✅ ${size}x${size} 크기의 퍼즐이 전송되었습니다!`);
         }
     </script>
 </body>
