@@ -22,11 +22,12 @@
         .found { text-decoration: line-through; color: #aaa; background: transparent; }
 
         #board-wrapper { display: inline-flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; overflow-x: auto; max-width: 100%; padding-bottom: 10px;}
+        
+        /* 💡 수정됨: 알파벳 라벨 시작 위치 (왼쪽 여백) */
         .top-labels { display: flex; padding-left: 32px; }
         .bottom-section { display: flex; }
         .left-labels { display: flex; flex-direction: column; margin-top: 2px; }
         
-        /* 💡 모바일에 맞춰 칸 크기 살짝 조정 */
         .label { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; color: #888; }
         
         #puzzle-grid { position: relative; border: 2px solid #1976d2; background-color: #fff; z-index: 0; user-select: none; touch-action: none; }
@@ -52,7 +53,6 @@
     </div>
 
     <div id="player-list"></div>
-    
     <div class="word-list-box" id="word-list"><span style="color: gray;">대기 중...</span></div>
     
     <div id="board-wrapper"></div>
@@ -127,9 +127,8 @@
             
             let topHeader = document.createElement('div');
             topHeader.className = 'top-labels';
-            let emptyCorner = document.createElement('div');
-            emptyCorner.className = 'label';
-            topHeader.appendChild(emptyCorner);
+            
+            // 💡 문제의 원인이었던 '중복된 빈칸(emptyCorner)'을 삭제했습니다!
             for (let x = 0; x < size; x++) {
                 let labelDiv = document.createElement('div');
                 labelDiv.className = 'label';
@@ -154,12 +153,10 @@
             let gridElement = document.createElement('div');
             gridElement.id = 'puzzle-grid';
             
-            // 💡 스마트폰 터치 및 화면 스크롤 방지 로직
             gridElement.addEventListener('touchmove', (e) => {
-                if (isDragging) e.preventDefault(); // 드래그 중에 화면 스크롤 막기
+                if (isDragging) e.preventDefault();
             }, { passive: false });
 
-            // 💡 스마트폰에서 손가락을 뗐을 때 위치 계산 로직
             gridElement.addEventListener('touchend', (e) => {
                 if (!isDragging) return;
                 isDragging = false;
@@ -186,7 +183,6 @@
                     cellDiv.id = `cell-${y}-${x}`;
                     cellDiv.innerText = grid[y][x] || '';
                     
-                    // PC용 마우스 드래그
                     cellDiv.onmousedown = () => { isDragging = true; dragStart = { x, y }; };
                     cellDiv.onmouseup = () => {
                         if (isDragging) {
@@ -195,7 +191,6 @@
                         }
                     };
 
-                    // 모바일 터치 드래그 시작
                     cellDiv.addEventListener('touchstart', (e) => {
                         isDragging = true; 
                         dragStart = { x, y };
