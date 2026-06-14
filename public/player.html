@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-color=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>게임 참가</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
@@ -12,6 +12,9 @@
         .login-box { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); width: 80%; max-width: 300px; }
         .login-box input { padding: 10px; font-size: 16px; width: 80%; text-align: center; margin-bottom: 15px; border: 2px solid #1976d2; border-radius: 6px; }
         .login-box button { padding: 10px 20px; font-size: 16px; background-color: #1976d2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 80%; }
+
+        /* 💡 핵심: 입장 전에는 게임판 전체를 아예 숨겨버립니다. */
+        #game-ui { display: none; }
 
         #player-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0; }
         .player-badge { display: flex; flex-direction: column; align-items: center; padding: 5px 10px; border-radius: 8px; font-weight: bold; color: white; min-width: 50px; font-size: 12px; }
@@ -40,17 +43,18 @@
     <div id="login-screen">
         <div class="login-box">
             <h3 style="color: #1976d2; margin-top: 0;">팀 이름(닉네임) 입력!</h3>
-            <input type="text" id="playerName" placeholder="예: 1조">
+            <input type="text" id="playerName" placeholder="예: 1조" onkeydown="if(event.key === 'Enter') joinGame()">
             <br>
             <button onclick="joinGame()">입장하기</button>
         </div>
     </div>
 
-    <div id="player-list"></div>
-    <div class="word-list-box" id="word-list"><span style="color: gray;">대기 중...</span></div>
-    
-    <h2 style="color: #1976d2; font-size: 18px; margin-bottom: 5px;">🎮 단어 드래그 판</h2>
-    <div id="board-wrapper"></div>
+    <div id="game-ui">
+        <div id="player-list"></div>
+        <div class="word-list-box" id="word-list"><span style="color: gray;">대기 중...</span></div>
+        <h2 style="color: #1976d2; font-size: 18px; margin-bottom: 5px;">🎮 단어 드래그 판</h2>
+        <div id="board-wrapper"></div>
+    </div>
 
     <script>
         const socket = io();
@@ -65,7 +69,11 @@
             const nameInput = document.getElementById('playerName').value;
             if (nameInput.trim() === "") { alert("이름을 꼭 입력해 주세요!"); return; }
             myName = nameInput.trim();
+            
+            // 💡 이름을 성공적으로 적었을 때만 로그인 창을 없애고 퍼즐판을 뿅! 나타나게 합니다.
             document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('game-ui').style.display = 'block';
+            
             socket.emit('joinGame', myName);
         }
 
@@ -237,6 +245,9 @@
         }
 
         function checkAnswer(startX, startY, endX, endY) {
+            // 💡 이름을 안 적은 유저는 서버에 정답을 보내지도 못하게 원천 차단
+            if (myName === "") return;
+
             let stepX = 0, stepY = 0;
             if (startX < endX) stepX = 1; else if (startX > endX) stepX = -1;
             if (startY < endY) stepY = 1; else if (startY > endY) stepY = -1;
