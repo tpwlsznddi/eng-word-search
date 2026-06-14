@@ -61,14 +61,16 @@ io.on('connection', (socket) => {
     });
 
     socket.on('correctAnswer', (data) => {
-        // 💡 핵심 보안: 서버에 이름이 등록된 플레이어인지 먼저 확인합니다!
         const player = players.find(p => p.id === socket.id);
-        
-        // 💡 이름이 없는 유령 유저의 정답은 서버가 무시해버립니다.
         if (!player) return; 
 
         const { startX, startY, endX, endY, word } = data;
         
+        // 💡 1차 방어막: 가로, 세로, 완벽한 45도 대각선이 아니면 오작동으로 간주하고 무시!
+        const dx = Math.abs(endX - startX);
+        const dy = Math.abs(endY - startY);
+        if (dx !== 0 && dy !== 0 && dx !== dy) return;
+
         if (!foundWords.includes(word)) {
             foundWords.push(word);
             
