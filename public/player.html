@@ -22,8 +22,6 @@
         .found { text-decoration: line-through; color: #aaa; background: transparent; }
 
         #board-wrapper { display: inline-flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; overflow-x: auto; max-width: 100%; padding-bottom: 10px;}
-        
-        /* 💡 수정됨: 알파벳 라벨 시작 위치 (왼쪽 여백) */
         .top-labels { display: flex; padding-left: 32px; }
         .bottom-section { display: flex; }
         .left-labels { display: flex; flex-direction: column; margin-top: 2px; }
@@ -54,7 +52,6 @@
 
     <div id="player-list"></div>
     <div class="word-list-box" id="word-list"><span style="color: gray;">대기 중...</span></div>
-    
     <div id="board-wrapper"></div>
 
     <div style="width: 100%;">
@@ -114,6 +111,15 @@
             targetWords = data.words;
             drawWordList(data.words, data.foundWords);
             drawGrid();
+
+            // 💡 중간 입장 시 이미 찾아진 선들 복구
+            if (data.foundLines && data.foundLines.length > 0) {
+                setTimeout(() => {
+                    data.foundLines.forEach(line => {
+                        drawLine(line.startX, line.startY, line.endX, line.endY, line.color);
+                    });
+                }, 100);
+            }
         });
 
         socket.on('wordFound', (word) => {
@@ -127,8 +133,6 @@
             
             let topHeader = document.createElement('div');
             topHeader.className = 'top-labels';
-            
-            // 💡 문제의 원인이었던 '중복된 빈칸(emptyCorner)'을 삭제했습니다!
             for (let x = 0; x < size; x++) {
                 let labelDiv = document.createElement('div');
                 labelDiv.className = 'label';
@@ -204,6 +208,36 @@
             boardWrapper.appendChild(bottomSection);
         }
 
+        // 💡 선 그리기 전용 함수
+        function drawLine(startX, startY, endX, endY, color) {
+            const startCell = document.getElementById(`cell-${startY}-${startX}`);
+            const endCell = document.getElementById(`cell-${endY}-${endX}`);
+            const gridElement = document.getElementById('puzzle-grid');
+
+            if (!startCell || !endCell) return;
+
+            const x1 = startCell.offsetLeft + (startCell.offsetWidth / 2);
+            const y1 = startCell.offsetTop + (startCell.offsetHeight / 2);
+            const x2 = endCell.offsetLeft + (endCell.offsetWidth / 2);
+            const y2 = endCell.offsetTop + (endCell.offsetHeight / 2);
+
+            const length = Math.hypot(x2 - x1, y2 - y1) + startCell.offsetWidth;
+            const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
+            const cx = (x1 + x2) / 2;
+            const cy = (y1 + y2) / 2;
+
+            const line = document.createElement('div');
+            line.className = 'answer-line';
+            line.style.width = `${length}px`;
+            line.style.height = `${startCell.offsetHeight}px`;
+            line.style.backgroundColor = color;
+            line.style.left = `${cx - length / 2}px`;
+            line.style.top = `${cy - startCell.offsetHeight / 2}px`;
+            line.style.transform = `rotate(${angle}deg)`;
+
+            gridElement.appendChild(line);
+        }
+
         function parseCoord(str) {
             str = str.trim().toUpperCase();
             const match = str.match(/^([A-Z])(\d+)$/) || str.match(/^(\d+)([A-Z])$/);
@@ -267,33 +301,7 @@
         }
 
         socket.on('colorCells', (data) => {
-            const { startX, startY, endX, endY, color } = data;
-            const startCell = document.getElementById(`cell-${startY}-${startX}`);
-            const endCell = document.getElementById(`cell-${endY}-${endX}`);
-            const gridElement = document.getElementById('puzzle-grid');
-
-            if (!startCell || !endCell) return;
-
-            const x1 = startCell.offsetLeft + (startCell.offsetWidth / 2);
-            const y1 = startCell.offsetTop + (startCell.offsetHeight / 2);
-            const x2 = endCell.offsetLeft + (endCell.offsetWidth / 2);
-            const y2 = endCell.offsetTop + (endCell.offsetHeight / 2);
-
-            const length = Math.hypot(x2 - x1, y2 - y1) + startCell.offsetWidth;
-            const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
-            const cx = (x1 + x2) / 2;
-            const cy = (y1 + y2) / 2;
-
-            const line = document.createElement('div');
-            line.className = 'answer-line';
-            line.style.width = `${length}px`;
-            line.style.height = `${startCell.offsetHeight}px`;
-            line.style.backgroundColor = color;
-            line.style.left = `${cx - length / 2}px`;
-            line.style.top = `${cy - startCell.offsetHeight / 2}px`;
-            line.style.transform = `rotate(${angle}deg)`;
-
-            gridElement.appendChild(line);
+            drawLine(data.startX, data.startY, data.endX, data.endY, data.color);
         });
     </script>
 </body>
