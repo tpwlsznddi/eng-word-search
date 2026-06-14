@@ -13,7 +13,6 @@
         .login-box input { padding: 10px; font-size: 16px; width: 80%; text-align: center; margin-bottom: 15px; border: 2px solid #1976d2; border-radius: 6px; }
         .login-box button { padding: 10px 20px; font-size: 16px; background-color: #1976d2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 80%; }
 
-        /* 💡 핵심: 입장 전에는 게임판 전체를 아예 숨겨버립니다. */
         #game-ui { display: none; }
 
         #player-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0; }
@@ -24,12 +23,7 @@
         .word-item { font-size: 14px; font-weight: bold; padding: 3px 6px; background: #e3f2fd; border-radius: 5px; transition: 0.3s; }
         .found { text-decoration: line-through; color: #aaa; background: transparent; }
 
-        #board-wrapper { display: inline-flex; flex-direction: column; align-items: flex-start; margin-bottom: 30px; overflow: auto; max-width: 100%; max-height: 75vh; padding-bottom: 10px; border: 1px solid #bbb; background: #fff;}
-        .top-labels { display: flex; padding-left: 32px; }
-        .bottom-section { display: flex; }
-        .left-labels { display: flex; flex-direction: column; margin-top: 2px; }
-        
-        .label { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; color: #888; }
+        #board-wrapper { display: inline-flex; flex-direction: column; align-items: center; margin-bottom: 30px; overflow: auto; max-width: 100%; max-height: 75vh; padding: 10px; background: transparent; margin: 0 auto;}
         
         #puzzle-grid { position: relative; border: 2px solid #1976d2; background-color: #fff; z-index: 0; user-select: none; touch-action: none; }
         .row { display: flex; }
@@ -70,7 +64,6 @@
             if (nameInput.trim() === "") { alert("이름을 꼭 입력해 주세요!"); return; }
             myName = nameInput.trim();
             
-            // 💡 이름을 성공적으로 적었을 때만 로그인 창을 없애고 퍼즐판을 뿅! 나타나게 합니다.
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('game-ui').style.display = 'block';
             
@@ -103,15 +96,6 @@
             });
         }
 
-        function getColLetter(col) {
-            let letter = "";
-            while (col >= 0) {
-                letter = String.fromCharCode((col % 26) + 65) + letter;
-                col = Math.floor(col / 26) - 1;
-            }
-            return letter;
-        }
-
         socket.on('syncPuzzle', (data) => {
             grid = data.grid;
             targetWords = data.words;
@@ -137,30 +121,6 @@
             const boardWrapper = document.getElementById('board-wrapper');
             boardWrapper.innerHTML = '';
             
-            let topHeader = document.createElement('div');
-            topHeader.className = 'top-labels';
-            
-            for (let x = 0; x < size; x++) {
-                let labelDiv = document.createElement('div');
-                labelDiv.className = 'label';
-                labelDiv.innerText = getColLetter(x);
-                topHeader.appendChild(labelDiv);
-            }
-            boardWrapper.appendChild(topHeader);
-
-            let bottomSection = document.createElement('div');
-            bottomSection.className = 'bottom-section';
-
-            let leftLabels = document.createElement('div');
-            leftLabels.className = 'left-labels';
-            for (let y = 0; y < size; y++) {
-                let labelDiv = document.createElement('div');
-                labelDiv.className = 'label';
-                labelDiv.innerText = y + 1;
-                leftLabels.appendChild(labelDiv);
-            }
-            bottomSection.appendChild(leftLabels);
-
             let gridElement = document.createElement('div');
             gridElement.id = 'puzzle-grid';
             
@@ -211,8 +171,7 @@
                 }
                 gridElement.appendChild(rowDiv);
             }
-            bottomSection.appendChild(gridElement);
-            boardWrapper.appendChild(bottomSection);
+            boardWrapper.appendChild(gridElement);
         }
 
         function drawLine(startX, startY, endX, endY, color) {
@@ -245,7 +204,6 @@
         }
 
         function checkAnswer(startX, startY, endX, endY) {
-            // 💡 이름을 안 적은 유저는 서버에 정답을 보내지도 못하게 원천 차단
             if (myName === "") return;
 
             let stepX = 0, stepY = 0;
