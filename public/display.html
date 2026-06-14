@@ -5,7 +5,7 @@
     <title>문제 화면</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #222; color: white; }
+        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #222; color: white; margin: 0; }
         #player-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin: 10px 0 20px 0; min-height: 40px; }
         .player-badge { display: flex; flex-direction: column; align-items: center; padding: 10px 15px; border-radius: 10px; font-weight: bold; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.4); min-width: 80px; }
         .player-score { font-size: 24px; margin-top: 5px; background: rgba(0,0,0,0.3); padding: 5px 15px; border-radius: 5px; }
@@ -14,16 +14,37 @@
         .word-item { font-size: 20px; font-weight: bold; padding: 5px 10px; background: #444; border-radius: 5px; transition: 0.3s; }
         .found { text-decoration: line-through; color: #888; background: transparent; }
 
-        #board-wrapper { display: inline-flex; flex-direction: column; align-items: center; max-width: 100%; overflow-x: auto; padding-bottom: 10px; margin: 0 auto; }
+        #board-wrapper { display: flex; justify-content: center; align-items: center; width: 100%; margin-bottom: 30px; }
         
-        #puzzle-grid { position: relative; border: 4px solid #fff; background-color: #333; z-index: 0; }
-        .row { display: flex; }
-        .cell { position: relative; z-index: 2; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 28px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
-        .answer-line { position: absolute; border-radius: 50px; opacity: 0.9; z-index: 1; pointer-events: none; transition: all 0.5s ease; box-shadow: inset 0 0 10px rgba(0,0,0,0.2); }
+        /* 💡 반응형 CSS Grid 로직 도입 */
+        #puzzle-grid { 
+            position: relative; 
+            border: 4px solid #fff; 
+            background-color: #333; 
+            z-index: 0; 
+            display: grid; /* Flex 대신 Grid 사용 */
+            width: 95vw; /* 화면 가로의 95% */
+            max-width: 70vh; /* 단, 세로 높이의 70%를 넘지 않음 (정사각형 유지) */
+            aspect-ratio: 1 / 1; /* 완벽한 정사각형 유지 */
+            box-sizing: border-box;
+            border-radius: 8px;
+        }
+        
+        .cell { 
+            position: relative; 
+            z-index: 2; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-weight: bold; 
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5); 
+        }
+        
+        .answer-line { position: absolute; border-radius: 50px; opacity: 0.9; z-index: 1; pointer-events: none; transition: all 0.3s ease; box-shadow: inset 0 0 10px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
-    <h2>📺 중앙 문제 화면</h2>
+    <h2 style="margin-top: 10px;">📺 중앙 문제 화면</h2>
     <div id="player-list"></div>
     <div class="word-list-box" id="word-list"><span style="color: gray;">대기 중...</span></div>
     <div id="board-wrapper"></div>
@@ -32,6 +53,7 @@
         const socket = io();
         let size = 10; 
         let grid = [];
+        let localFoundLines = []; // 💡 선 복구를 위한 장부 추가
 
         socket.on('updatePlayers', (players) => {
             const listElement = document.getElementById('player-list');
@@ -63,12 +85,13 @@
         socket.on('syncPuzzle', (data) => {
             grid = data.grid;
             size = data.size || 10; 
+            localFoundLines = data.foundLines || [];
             drawWordList(data.words, data.foundWords);
             drawGrid();
 
-            if (data.foundLines && data.foundLines.length > 0) {
+            if (localFoundLines.length > 0) {
                 setTimeout(() => {
-                    data.foundLines.forEach(line => {
+                    localFoundLines.forEach(line => {
                         drawLine(line.startX, line.startY, line.endX, line.endY, line.color);
                     });
                 }, 100);
@@ -87,17 +110,22 @@
             let gridElement = document.createElement('div');
             gridElement.id = 'puzzle-grid';
             
+            // 💡 크기에 맞춰 칸을 N등분으로 자동 쪼개주는 마법의 로직
+            gridElement.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+            gridElement.style.gridTemplateRows = `repeat(${size}, 1fr)`;
+            
             for (let y = 0; y < size; y++) {
-                let rowDiv = document.createElement('div');
-                rowDiv.className = 'row';
                 for (let x = 0; x < size; x++) {
                     let cellDiv = document.createElement('div');
                     cellDiv.className = 'cell';
                     cellDiv.id = `cell-${y}-${x}`;
                     cellDiv.innerText = grid[y][x] || '';
-                    rowDiv.appendChild(cellDiv);
+                    
+                    // 💡 글자 크기도 화면 크기에 비례하여 다이나믹하게 변함
+                    cellDiv.style.fontSize = `calc(min(95vw, 70vh) / ${size} * 0.6)`;
+                    
+                    gridElement.appendChild(cellDiv);
                 }
-                gridElement.appendChild(rowDiv);
             }
             boardWrapper.appendChild(gridElement);
         }
@@ -132,7 +160,20 @@
         }
 
         socket.on('colorCells', (data) => {
+            localFoundLines.push(data); // 새로 그려진 선 장부에 추가
             drawLine(data.startX, data.startY, data.endX, data.endY, data.color);
+        });
+
+        // 💡 화면 크기가 변하거나 스마트폰을 돌렸을 때 선을 다시 그리는 기능
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                document.querySelectorAll('.answer-line').forEach(el => el.remove());
+                localFoundLines.forEach(line => {
+                    drawLine(line.startX, line.startY, line.endX, line.endY, line.color);
+                });
+            }, 300);
         });
     </script>
 </body>
