@@ -19,16 +19,39 @@
         .player-badge { display: flex; flex-direction: column; align-items: center; padding: 5px 10px; border-radius: 8px; font-weight: bold; color: white; min-width: 50px; font-size: 12px; }
         .player-score { font-size: 16px; margin-top: 3px; background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 5px; }
 
-        .word-list-box { background: white; border: 2px solid #1976d2; border-radius: 8px; padding: 10px; margin: 0 auto 15px auto; max-width: 95%; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+        .word-list-box { background: white; border: 2px solid #1976d2; border-radius: 8px; padding: 10px; margin: 0 auto 10px auto; max-width: 95%; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
         .word-item { font-size: 14px; font-weight: bold; padding: 3px 6px; background: #e3f2fd; border-radius: 5px; transition: 0.3s; }
         .found { text-decoration: line-through; color: #aaa; background: transparent; }
 
-        #board-wrapper { display: inline-flex; flex-direction: column; align-items: center; margin-bottom: 30px; overflow: auto; max-width: 100%; max-height: 75vh; padding: 10px; background: transparent; margin: 0 auto;}
+        #board-wrapper { display: flex; justify-content: center; align-items: center; width: 100%; margin-bottom: 20px; }
         
-        #puzzle-grid { position: relative; border: 2px solid #1976d2; background-color: #fff; z-index: 0; user-select: none; touch-action: none; }
-        .row { display: flex; }
-        .cell { position: relative; z-index: 2; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
-        .cell:hover { background-color: #bbdefb; border-radius: 5px; }
+        /* 💡 반응형 CSS Grid 로직 도입 (모바일) */
+        #puzzle-grid { 
+            position: relative; 
+            border: 2px solid #1976d2; 
+            background-color: #fff; 
+            z-index: 0; 
+            user-select: none; 
+            touch-action: none; 
+            display: grid; /* Grid 사용 */
+            width: 95vw; 
+            max-width: 60vh; /* 상단 UI 영역을 고려해 높이를 약간 줄임 */
+            aspect-ratio: 1 / 1; 
+            box-sizing: border-box;
+            border-radius: 8px;
+        }
+        
+        .cell { 
+            position: relative; 
+            z-index: 2; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-weight: bold; 
+            cursor: pointer; 
+            transition: 0.2s; 
+        }
+        .cell:hover { background-color: #bbdefb; border-radius: 20%; }
         
         .answer-line { position: absolute; border-radius: 50px; opacity: 0.5; z-index: 1; pointer-events: none; transition: all 0.3s ease; }
     </style>
@@ -46,7 +69,7 @@
     <div id="game-ui">
         <div id="player-list"></div>
         <div class="word-list-box" id="word-list"><span style="color: gray;">대기 중...</span></div>
-        <h2 style="color: #1976d2; font-size: 18px; margin-bottom: 5px;">🎮 단어 드래그 판</h2>
+        <h2 style="color: #1976d2; font-size: 16px; margin: 0 0 5px 0;">🎮 단어 드래그 판</h2>
         <div id="board-wrapper"></div>
     </div>
 
@@ -58,6 +81,7 @@
         let isDragging = false;
         let dragStart = null;
         let myName = "";
+        let localFoundLines = []; // 💡 선 복구 장부
 
         function joinGame() {
             const nameInput = document.getElementById('playerName').value;
@@ -100,12 +124,13 @@
             grid = data.grid;
             targetWords = data.words;
             size = data.size || 10;
+            localFoundLines = data.foundLines || [];
             drawWordList(data.words, data.foundWords);
             drawGrid();
 
-            if (data.foundLines && data.foundLines.length > 0) {
+            if (localFoundLines.length > 0) {
                 setTimeout(() => {
-                    data.foundLines.forEach(line => {
+                    localFoundLines.forEach(line => {
                         drawLine(line.startX, line.startY, line.endX, line.endY, line.color);
                     });
                 }, 100);
@@ -123,6 +148,9 @@
             
             let gridElement = document.createElement('div');
             gridElement.id = 'puzzle-grid';
+            
+            gridElement.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+            gridElement.style.gridTemplateRows = `repeat(${size}, 1fr)`;
             
             gridElement.addEventListener('touchmove', (e) => {
                 if (isDragging) e.preventDefault();
@@ -146,13 +174,13 @@
             gridElement.onmouseleave = () => { isDragging = false; };
             
             for (let y = 0; y < size; y++) {
-                let rowDiv = document.createElement('div');
-                rowDiv.className = 'row';
                 for (let x = 0; x < size; x++) {
                     let cellDiv = document.createElement('div');
                     cellDiv.className = 'cell';
                     cellDiv.id = `cell-${y}-${x}`;
                     cellDiv.innerText = grid[y][x] || '';
+                    
+                    cellDiv.style.fontSize = `calc(min(95vw, 60vh) / ${size} * 0.6)`;
                     
                     cellDiv.onmousedown = () => { isDragging = true; dragStart = { x, y }; };
                     cellDiv.onmouseup = () => {
@@ -167,9 +195,8 @@
                         dragStart = { x, y };
                     }, { passive: false });
 
-                    rowDiv.appendChild(cellDiv);
+                    gridElement.appendChild(cellDiv);
                 }
-                gridElement.appendChild(rowDiv);
             }
             boardWrapper.appendChild(gridElement);
         }
@@ -234,7 +261,20 @@
         }
 
         socket.on('colorCells', (data) => {
+            localFoundLines.push(data); 
             drawLine(data.startX, data.startY, data.endX, data.endY, data.color);
+        });
+
+        // 💡 화면 크기(가로/세로 방향전환 등) 변경 시 선 리페인팅 방어 코드
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                document.querySelectorAll('.answer-line').forEach(el => el.remove());
+                localFoundLines.forEach(line => {
+                    drawLine(line.startX, line.startY, line.endX, line.endY, line.color);
+                });
+            }, 300);
         });
     </script>
 </body>
