@@ -2,65 +2,111 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>문제 만들기</title>
+    <title>방장 전용 (문제 생성)</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; }
-        input { padding: 10px; width: 300px; font-size: 16px; margin-bottom: 10px; }
-        button { padding: 10px 20px; font-size: 16px; background-color: #e91e63; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; }
+        .maker-box { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: inline-block; }
+        input { padding: 10px; font-size: 16px; width: 300px; border: 2px solid #673ab7; border-radius: 6px; }
+        button { padding: 10px 20px; font-size: 16px; background-color: #673ab7; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; }
     </style>
 </head>
 <body>
-<h2>🛠️ 문제 만들기 (방장용)</h2>
-<p>단어를 입력하고 전송 버튼을 누르세요.</p>
-<input type="text" id="words" value="APPLE, JAVA, SPRING" placeholder="단어 입력 (쉼표로 구분)">
-<br>
-<button onclick="generateAndSend()">중앙 화면으로 문제 전송!</button>
+    <div class="maker-box">
+        <h2 style="color: #673ab7;">🛠️ 문제 출제 (방장 전용)</h2>
+        <p>숨길 영어 단어들을 <b>쉼표(,)</b>로 구분해서 입력하세요.</p>
+        <input type="text" id="wordInput" placeholder="예: APPLE, BANANA, CAT">
+        <br>
+        <button onclick="generatePuzzle()">퍼즐 만들기 및 전송 🚀</button>
+    </div>
 
-<script>
-    const socket = io();
-    const size = 10;
+    <script>
+        const socket = io();
+        const size = 10;
 
-    function generateAndSend() {
-        const inputStr = document.getElementById('words').value;
-        const tempWords = inputStr.toUpperCase().split(',').map(w => w.trim()).filter(w => w.length > 0);
+        function generatePuzzle() {
+            const input = document.getElementById('wordInput').value.toUpperCase();
+            const words = input.split(',').map(w => w.trim()).filter(w => w.length > 0);
 
-        let tempGrid = Array(size).fill(null).map(() => Array(size).fill('-'));
-        const directions = [ {x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1} ];
+            if (words.length === 0) {
+                alert("단어를 하나 이상 입력하세요!");
+                return;
+            }
 
-        tempWords.forEach(word => {
-            let placed = false, attempts = 0;
-            while (!placed && attempts < 100) {
-                let dir = directions[Math.floor(Math.random() * directions.length)];
-                let startX = Math.floor(Math.random() * size);
-                let startY = Math.floor(Math.random() * size);
-                let canPlace = true;
+            let grid = Array(size).fill(null).map(() => Array(size).fill(''));
 
-                if (startX + (dir.x * word.length) > size || startY + (dir.y * word.length) > size) canPlace = false;
-                else {
+            // 💡 8가지 모든 방향을 완벽하게 정의합니다.
+            const directions = [
+                [0, 1],   // 가로 정방향 (우)
+                [0, -1],  // 가로 역방향 (좌)
+                [1, 0],   // 세로 정방향 (하)
+                [-1, 0],  // 세로 역방향 (상)
+                [1, 1],   // 대각선 정방향 (우하)
+                [-1, -1], // 대각선 역방향 (좌상)
+                [1, -1],  // 대각선 (좌하)
+                [-1, 1]   // 대각선 (우상)
+            ];
+
+            let successfullyPlacedWords = [];
+
+            for (let word of words) {
+                let placed = false;
+                let attempts = 0;
+
+                // 단어가 격자에 잘 들어갈 때까지 최대 100번 위치를 랜덤으로 바꿔가며 시도
+                while (!placed && attempts < 100) {
+                    attempts++;
+                    
+                    let startY = Math.floor(Math.random() * size);
+                    let startX = Math.floor(Math.random() * size);
+                    
+                    // 위에서 정의한 8방향 중 하나를 랜덤으로 선택
+                    let dir = directions[Math.floor(Math.random() * directions.length)];
+
+                    let endY = startY + dir[0] * (word.length - 1);
+                    let endX = startX + dir[1] * (word.length - 1);
+
+                    // 단어가 격자(10x10) 밖으로 튀어나가면 무효 처리하고 다시 시도
+                    if (endY < 0 || endY >= size || endX < 0 || endX >= size) continue;
+
+                    // 다른 단어와 충돌(글자가 겹치는데 알파벳이 다른 경우)하는지 확인
+                    let canPlace = true;
                     for (let i = 0; i < word.length; i++) {
-                        let nx = startX + (dir.x * i), ny = startY + (dir.y * i);
-                        if (tempGrid[ny][nx] !== '-' && tempGrid[ny][nx] !== word[i]) { canPlace = false; break; }
+                        let cy = startY + dir[0] * i;
+                        let cx = startX + dir[1] * i;
+                        if (grid[cy][cx] !== '' && grid[cy][cx] !== word[i]) {
+                            canPlace = false;
+                            break;
+                        }
+                    }
+
+                    // 안전한 자리면 격자에 글자 박아넣기
+                    if (canPlace) {
+                        for (let i = 0; i < word.length; i++) {
+                            let cy = startY + dir[0] * i;
+                            let cx = startX + dir[1] * i;
+                            grid[cy][cx] = word[i];
+                        }
+                        successfullyPlacedWords.push(word);
+                        placed = true;
                     }
                 }
-                if (canPlace) {
-                    for (let i = 0; i < word.length; i++) tempGrid[startY + (dir.y * i)][startX + (dir.x * i)] = word[i];
-                    placed = true;
+            }
+
+            // 나머지 빈칸을 무작위 알파벳으로 가득 채우기
+            const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    if (grid[y][x] === '') {
+                        grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)];
+                    }
                 }
-                attempts++;
             }
-        });
 
-        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        for (let y = 0; y < size; y++) {
-            for (let x = 0; x < size; x++) {
-                if (tempGrid[y][x] === '-') tempGrid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)];
-            }
+            // 완성된 퍼즐 데이터를 모든 접속자에게 전송!
+            socket.emit('newPuzzle', { grid: grid, words: successfullyPlacedWords });
+            alert("✅ 새로운 퍼즐이 모든 화면에 전송되었습니다!");
         }
-
-        socket.emit('newPuzzle', { grid: tempGrid, words: tempWords });
-        alert('성공! 중앙 화면(디스플레이)과 플레이어들에게 퍼즐이 전송되었습니다.');
-    }
-</script>
+    </script>
 </body>
 </html>
