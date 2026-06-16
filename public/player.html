@@ -23,35 +23,18 @@
         .word-item { font-size: 14px; font-weight: bold; padding: 3px 6px; background: #e3f2fd; border-radius: 5px; transition: 0.3s; }
         .found { text-decoration: line-through; color: #aaa; background: transparent; }
 
-        #board-wrapper { display: flex; justify-content: center; align-items: center; width: 100%; margin-bottom: 20px; }
+        /* 💡 모든 단어를 찾았을 때 나오는 축하 박스 디자인 */
+        .success-box { background: white; border: 3px solid #4caf50; border-radius: 8px; padding: 15px; color: #4caf50; font-size: 18px; font-weight: bold; box-shadow: 0 4px 10px rgba(76, 175, 80, 0.2); width: 90%; margin: 0 auto; }
+
+        #board-wrapper { display: flex; justify-content: center; align-items: center; width: 100%; margin-bottom: 20px; margin-top: 10px;}
         
         #puzzle-grid { 
-            position: relative; 
-            border: 2px solid #1976d2; 
-            background-color: #fff; 
-            z-index: 0; 
-            user-select: none; 
-            touch-action: none; 
-            display: grid; 
-            width: 95vw; 
-            max-width: 60vh; 
-            aspect-ratio: 1 / 1; 
-            box-sizing: border-box;
-            border-radius: 8px;
+            position: relative; border: 2px solid #1976d2; background-color: #fff; z-index: 0; user-select: none; touch-action: none; 
+            display: grid; width: 95vw; max-width: 60vh; aspect-ratio: 1 / 1; box-sizing: border-box; border-radius: 8px;
         }
         
-        .cell { 
-            position: relative; 
-            z-index: 2; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-weight: bold; 
-            cursor: pointer; 
-            transition: 0.2s; 
-        }
+        .cell { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; transition: 0.2s; }
         .cell:hover { background-color: #bbdefb; border-radius: 20%; }
-        
         .answer-line { position: absolute; border-radius: 50px; opacity: 0.5; z-index: 1; pointer-events: none; transition: all 0.3s ease; }
     </style>
 </head>
@@ -68,28 +51,19 @@
     <div id="game-ui">
         <div id="player-list"></div>
         <div class="word-list-box" id="word-list"><span style="color: gray;">대기 중...</span></div>
-        <h2 style="color: #1976d2; font-size: 16px; margin: 0 0 5px 0;">🎮 단어 드래그 판</h2>
         <div id="board-wrapper"></div>
     </div>
 
     <script>
         const socket = io();
-        let size = 10; 
-        let grid = [];
-        let targetWords = [];
-        let isDragging = false;
-        let dragStart = null;
-        let myName = "";
-        let localFoundLines = []; 
+        let size = 10; let grid = []; let targetWords = []; let isDragging = false; let dragStart = null; let myName = ""; let localFoundLines = []; 
 
         function joinGame() {
             const nameInput = document.getElementById('playerName').value;
             if (nameInput.trim() === "") { alert("이름을 꼭 입력해 주세요!"); return; }
             myName = nameInput.trim();
-            
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('game-ui').style.display = 'block';
-            
             socket.emit('joinGame', myName);
         }
 
@@ -106,94 +80,78 @@
             });
         });
 
+        // 💡 단어 리스트 그릴 때 완료 박스 로직 추가
         function drawWordList(words, foundWords) {
             const wordContainer = document.getElementById('word-list');
             wordContainer.innerHTML = '';
-            words.forEach(word => {
+            const remainingWords = words.filter(w => !(foundWords && foundWords.includes(w)));
+            
+            if (remainingWords.length === 0 && words.length > 0) {
+                wordContainer.innerHTML = '<div class="success-box">모든 단어를 찾았습니다! 🎉</div>';
+                return;
+            }
+            
+            remainingWords.forEach(word => {
                 const span = document.createElement('span');
                 span.id = `word-${word}`;
                 span.className = 'word-item';
-                if (foundWords && foundWords.includes(word)) span.classList.add('found');
                 span.innerText = word;
                 wordContainer.appendChild(span);
             });
         }
 
         socket.on('syncPuzzle', (data) => {
-            grid = data.grid;
-            targetWords = data.words;
-            size = data.size || 10;
-            localFoundLines = data.foundLines || [];
+            grid = data.grid; targetWords = data.words; size = data.size || 10; localFoundLines = data.foundLines || [];
             drawWordList(data.words, data.foundWords);
             drawGrid();
-
             if (localFoundLines.length > 0) {
-                setTimeout(() => {
-                    localFoundLines.forEach(line => {
-                        drawLine(line.startX, line.startY, line.endX, line.endY, line.color);
-                    });
-                }, 100);
+                setTimeout(() => { localFoundLines.forEach(line => { drawLine(line.startX, line.startY, line.endX, line.endY, line.color); }); }, 100);
             }
         });
 
+        // 💡 단어를 찾을 때 애니메이션 후 완료 박스 띄우기 로직 추가
         socket.on('wordFound', (word) => {
             const span = document.getElementById(`word-${word}`);
-            if (span) span.classList.add('found');
+            if (span) {
+                span.style.transition = 'all 0.4s ease-out'; span.style.opacity = '0'; span.style.transform = 'scale(0.5)';
+                setTimeout(() => {
+                    span.remove();
+                    const wordContainer = document.getElementById('word-list');
+                    if (wordContainer.children.length === 0) {
+                        wordContainer.innerHTML = '<div class="success-box">모든 단어를 찾았습니다! 🎉</div>';
+                    }
+                }, 400);
+            }
         });
 
         function drawGrid() {
             const boardWrapper = document.getElementById('board-wrapper');
             boardWrapper.innerHTML = '';
-            
             let gridElement = document.createElement('div');
             gridElement.id = 'puzzle-grid';
-            
             gridElement.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
             gridElement.style.gridTemplateRows = `repeat(${size}, 1fr)`;
             
-            gridElement.addEventListener('touchmove', (e) => {
-                if (isDragging) e.preventDefault();
-            }, { passive: false });
-
+            gridElement.addEventListener('touchmove', (e) => { if (isDragging) e.preventDefault(); }, { passive: false });
             gridElement.addEventListener('touchend', (e) => {
-                if (!isDragging) return;
-                isDragging = false;
-                
+                if (!isDragging) return; isDragging = false;
                 const touch = e.changedTouches[0];
                 const endElement = document.elementFromPoint(touch.clientX, touch.clientY);
-                
                 if (endElement && endElement.classList.contains('cell')) {
                     const parts = endElement.id.split('-');
-                    const endY = parseInt(parts[1]);
-                    const endX = parseInt(parts[2]);
-                    checkAnswer(dragStart.x, dragStart.y, endX, endY);
+                    checkAnswer(dragStart.x, dragStart.y, parseInt(parts[2]), parseInt(parts[1]));
                 }
             });
-
             gridElement.onmouseleave = () => { isDragging = false; };
             
             for (let y = 0; y < size; y++) {
                 for (let x = 0; x < size; x++) {
                     let cellDiv = document.createElement('div');
-                    cellDiv.className = 'cell';
-                    cellDiv.id = `cell-${y}-${x}`;
-                    cellDiv.innerText = grid[y][x] || '';
-                    
+                    cellDiv.className = 'cell'; cellDiv.id = `cell-${y}-${x}`; cellDiv.innerText = grid[y][x] || '';
                     cellDiv.style.fontSize = `calc(min(95vw, 60vh) / ${size} * 0.6)`;
-                    
                     cellDiv.onmousedown = () => { isDragging = true; dragStart = { x, y }; };
-                    cellDiv.onmouseup = () => {
-                        if (isDragging) {
-                            isDragging = false;
-                            checkAnswer(dragStart.x, dragStart.y, x, y);
-                        }
-                    };
-
-                    cellDiv.addEventListener('touchstart', (e) => {
-                        isDragging = true; 
-                        dragStart = { x, y };
-                    }, { passive: false });
-
+                    cellDiv.onmouseup = () => { if (isDragging) { isDragging = false; checkAnswer(dragStart.x, dragStart.y, x, y); } };
+                    cellDiv.addEventListener('touchstart', (e) => { isDragging = true; dragStart = { x, y }; }, { passive: false });
                     gridElement.appendChild(cellDiv);
                 }
             }
@@ -204,7 +162,6 @@
             const startCell = document.getElementById(`cell-${startY}-${startX}`);
             const endCell = document.getElementById(`cell-${endY}-${endX}`);
             const gridElement = document.getElementById('puzzle-grid');
-
             if (!startCell || !endCell) return;
 
             const x1 = startCell.offsetLeft + (startCell.offsetWidth / 2);
@@ -214,36 +171,25 @@
 
             const length = Math.hypot(x2 - x1, y2 - y1) + startCell.offsetWidth;
             const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
-            const cx = (x1 + x2) / 2;
-            const cy = (y1 + y2) / 2;
+            const cx = (x1 + x2) / 2; const cy = (y1 + y2) / 2;
 
             const line = document.createElement('div');
-            line.className = 'answer-line';
-            line.style.width = `${length}px`;
-            line.style.height = `${startCell.offsetHeight}px`;
-            line.style.backgroundColor = color;
-            line.style.left = `${cx - length / 2}px`;
-            line.style.top = `${cy - startCell.offsetHeight / 2}px`;
+            line.className = 'answer-line'; line.style.width = `${length}px`; line.style.height = `${startCell.offsetHeight}px`;
+            line.style.backgroundColor = color; line.style.left = `${cx - length / 2}px`; line.style.top = `${cy - startCell.offsetHeight / 2}px`;
             line.style.transform = `rotate(${angle}deg)`;
-
             gridElement.appendChild(line);
         }
 
         function checkAnswer(startX, startY, endX, endY) {
             if (myName === "") return;
-
-            // 💡 2차 방어막: 플레이어가 삐딱하게 드래그하면 아예 검사 자체를 안 하고 무시합니다.
-            const dx = Math.abs(endX - startX);
-            const dy = Math.abs(endY - startY);
+            const dx = Math.abs(endX - startX); const dy = Math.abs(endY - startY);
             if (dx !== 0 && dy !== 0 && dx !== dy) return;
 
             let stepX = 0, stepY = 0;
             if (startX < endX) stepX = 1; else if (startX > endX) stepX = -1;
             if (startY < endY) stepY = 1; else if (startY > endY) stepY = -1;
 
-            let selectedWord = "";
-            let currX = startX, currY = startY;
-
+            let selectedWord = ""; let currX = startX, currY = startY;
             while (true) {
                 if (currY < 0 || currY >= size || currX < 0 || currX >= size) break;
                 selectedWord += grid[currY][currX];
@@ -252,9 +198,7 @@
             }
 
             const reversedWord = selectedWord.split('').reverse().join('');
-            let actualWord = null;
-            if (targetWords.includes(selectedWord)) actualWord = selectedWord;
-            else if (targetWords.includes(reversedWord)) actualWord = reversedWord;
+            let actualWord = targetWords.includes(selectedWord) ? selectedWord : targetWords.includes(reversedWord) ? reversedWord : null;
 
             if (actualWord) {
                 const wordSpan = document.getElementById(`word-${actualWord}`);
@@ -264,19 +208,14 @@
             }
         }
 
-        socket.on('colorCells', (data) => {
-            localFoundLines.push(data); 
-            drawLine(data.startX, data.startY, data.endX, data.endY, data.color);
-        });
+        socket.on('colorCells', (data) => { localFoundLines.push(data); drawLine(data.startX, data.startY, data.endX, data.endY, data.color); });
 
         let resizeTimer;
         window.addEventListener('resize', () => {
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(() => {
                 document.querySelectorAll('.answer-line').forEach(el => el.remove());
-                localFoundLines.forEach(line => {
-                    drawLine(line.startX, line.startY, line.endX, line.endY, line.color);
-                });
+                localFoundLines.forEach(line => { drawLine(line.startX, line.startY, line.endX, line.endY, line.color); });
             }, 300);
         });
     </script>
