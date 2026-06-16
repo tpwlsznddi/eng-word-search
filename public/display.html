@@ -5,30 +5,41 @@
     <title>중앙 문제 화면</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        /* 화면 스크롤을 완전히 없애고 꽉 차게 만드는 마법의 CSS */
+        /* 화면 스크롤을 완전히 없애고 3단 분할 꽉 차게 만드는 설정 */
         body { font-family: sans-serif; margin: 0; padding: 0; background-color: #222; color: white; display: flex; height: 100vh; overflow: hidden; }
 
-        /* ⬅️ 왼쪽 패널 (참가자 점수판) */
-        #left-panel { width: 260px; min-width: 260px; background-color: #2a2a2a; border-right: 3px solid #444; padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; }
-        #left-panel h3 { margin-top: 0; text-align: center; color: #4caf50; font-size: 22px; padding-bottom: 15px; border-bottom: 2px dashed #555; }
+        /* ⬅️ 왼쪽 패널 (실시간 랭킹 순위표) */
+        #left-panel { width: 280px; min-width: 280px; background-color: #2a2a2a; border-right: 3px solid #444; padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; }
+        #left-panel h3 { margin-top: 0; text-align: center; color: #4caf50; font-size: 22px; padding-bottom: 15px; border-bottom: 2px dashed #555; margin-bottom: 15px; }
         
-        #player-list { display: flex; flex-direction: column; gap: 15px; margin-top: 10px; position: relative; }
+        /* 💡 절대 좌표 애니메이션을 위한 기준점(relative) 설정 */
+        #player-list { position: relative; width: 100%; margin-top: 5px; transition: height 0.4s ease; }
         
-        /* 플레이어 배지 스타일 */
+        /* 💡 핵심: position을 absolute로 변경하여 박스가 직접 움직이도록 바꿨습니다. */
         .player-badge { 
-            display: flex; flex-direction: column; align-items: center; padding: 15px; border-radius: 12px; 
-            font-weight: bold; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); font-size: 18px; 
-            position: relative;
-            will-change: transform; /* 브라우저에게 애니메이션 최적화 힌트 제공 */
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 70px; /* 고정 높이 */
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            padding: 0 15px; 
+            border-radius: 12px; 
+            color: white; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
+            box-sizing: border-box;
+            
+            /* 💡 위아래(top) 좌표가 바뀔 때 0.6초간 스프링처럼 탱글하고 부드럽게 움직이는 쿠션 곡선 */
+            transition: top 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); 
+            will-change: top;
         }
-        .player-score { font-size: 26px; margin-top: 8px; background: rgba(0,0,0,0.3); padding: 5px 20px; border-radius: 8px; }
 
         /* ➡️ 오른쪽 패널 (찾을 단어 리스트) */
         #right-panel { width: 260px; min-width: 260px; background-color: #2a2a2a; border-left: 3px solid #444; padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; }
         #right-panel h3 { margin-top: 0; text-align: center; color: #ff9800; font-size: 22px; padding-bottom: 15px; border-bottom: 2px dashed #555; }
-        
         #word-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-        .word-item { font-size: 20px; font-weight: bold; padding: 10px; background: #444; border-radius: 8px; text-align: center; color: white; border: 2px solid transparent; transform-origin: center; }
+        .word-item { font-size: 20px; font-weight: bold; padding: 10px; background: #444; border-radius: 8px; text-align: center; color: white; transform-origin: center; }
 
         /* 🎯 중앙 패널 (메인 퍼즐) */
         #center-panel { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; background-color: #1a1a1a; }
@@ -65,8 +76,8 @@
 </head>
 <body>
     <div id="left-panel">
-        <h3>🏆 현재 순위</h3>
-        <div id="player-list"><span style="color: gray; text-align: center;">대기 중...</span></div>
+        <h3>🏆 실시간 순위</h3>
+        <div id="player-list"><span id="waiting-msg" style="color: gray; text-align: center; width: 100%;">대기 중...</span></div>
     </div>
 
     <div id="center-panel">
@@ -89,65 +100,63 @@
             const listElement = document.getElementById('player-list');
             
             if (players.length === 0) {
-                listElement.innerHTML = '<span style="color: gray; text-align: center;">대기 중...</span>';
+                listElement.innerHTML = '<span id="waiting-msg" style="color: gray; text-align: center; width: 100%;">대기 중...</span>';
+                listElement.style.height = 'auto';
                 return;
             }
 
-            if (listElement.querySelector('span')) {
-                listElement.innerHTML = '';
-            }
+            const waitingMsg = document.getElementById('waiting-msg');
+            if (waitingMsg) waitingMsg.remove();
 
-            // 💡 [FLIP 애니메이션 단계 1] : 현재 화면에 서 있는 배지들의 Y축 절대 위치(Top) 기록
-            const oldPositions = {};
-            Array.from(listElement.children).forEach(child => {
-                oldPositions[child.id] = child.getBoundingClientRect().top;
-            });
-
-            // 💡 데이터 무조건 점수 기준으로 완벽하게 정렬 (동점 시 이름 순)
+            // 💡 1. 무조건 점수 기준으로 완벽하게 정렬 (동점 시 이름 순)
             players.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 
-            // 💡 [FLIP 애니메이션 단계 2] : 정렬된 데이터 배치 (순서 교체)
-            players.forEach(p => {
+            const itemHeight = 70; // 박스 높이
+            const gap = 15;        // 박스 간격
+            
+            // 총 높이를 유동적으로 컨테이너에 설정
+            listElement.style.height = `${players.length * (itemHeight + gap)}px`;
+
+            // 💡 2. 각 플레이어 박스를 찾아 픽셀 단위 좌표(`top`)를 강제로 주입
+            players.forEach((p, index) => {
                 let badge = document.getElementById(`player-${p.id}`);
+                
+                // 새로운 플레이어가 들어왔다면 새로 생성해서 부모에 넣어둠
                 if (!badge) {
                     badge = document.createElement('div');
                     badge.id = `player-${p.id}`;
                     badge.className = 'player-badge';
                     badge.style.backgroundColor = p.color;
+                    listElement.appendChild(badge);
                 }
-                badge.innerHTML = `<span>${p.name}</span><div class="player-score">${p.score} 점</div>`;
-                listElement.appendChild(badge); // appendChild가 기존 요소를 새 정렬 순서 위치로 이동시킵니다.
+                
+                // 💡 3. 등수 표시 디자인 가공 (1, 2, 3등 메달 추가)
+                const rank = index + 1;
+                let rankText = `${rank}등`;
+                if (rank === 1) rankText = '🥇 1등';
+                else if (rank === 2) rankText = '🥈 2등';
+                else if (rank === 3) rankText = '🥉 3등';
+
+                // 내부 내용 업데이트 (이름 옆에 등수 라벨이 들어가게 배치)
+                badge.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="background: rgba(0,0,0,0.35); padding: 4px 8px; border-radius: 6px; font-size: 13px; min-width: 45px; text-align: center;">${rankText}</div>
+                        <span style="font-size: 17px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.name}</span>
+                    </div>
+                    <div style="font-size: 20px; background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 6px; font-weight: bold;">${p.score}점</div>
+                `;
+                
+                // 💡 4. 현재 등수 등급에 맞는 고유의 Y좌표 위치 할당
+                // 이 수치가 바뀌는 순간 CSS transition 속성에 의해 박스가 스르륵 위아래로 움직입니다!
+                badge.style.top = `${index * (itemHeight + gap)}px`;
             });
 
-            // 접속 종료 유저 처리
+            // 방 나간 유저 엘리먼트 증발 처리
             const currentIds = players.map(p => `player-${p.id}`);
             Array.from(listElement.children).forEach(child => {
-                if (!currentIds.includes(child.id)) child.remove();
-            });
-
-            // 💡 [FLIP 애니메이션 단계 3] : 순간이동한 거리(Delta)를 계산하여 강제로 이전 위치로 묶어둠
-            Array.from(listElement.children).forEach(child => {
-                const oldTop = oldPositions[child.id];
-                if (oldTop !== undefined) {
-                    const newTop = child.getBoundingClientRect().top;
-                    const deltaY = oldTop - newTop;
-
-                    if (deltaY !== 0) {
-                        // 애니메이션을 끄고 강제로 예전 좌표 자리에 가둬둡니다.
-                        child.style.transition = 'none';
-                        child.style.transform = `translateY(${deltaY}px)`;
-                    }
+                if (child.id && !currentIds.includes(child.id)) {
+                    child.remove();
                 }
-            });
-
-            // 💡 [핵심 버그 수정 요인] : 강제 리플로우(Reflow) 발생
-            // 이 코드가 브라우저의 화면 최적화를 깨부수고, 위에서 먹인 'transition none' 상태를 억지로 먼저 렌더링 시킵니다.
-            listElement.offsetHeight; 
-
-            // 💡 [FLIP 애니메이션 단계 4] : 가둬둔 족쇄를 풀며 부드럽게 새 자리로 슬라이딩 가동
-            Array.from(listElement.children).forEach(child => {
-                child.style.transition = 'transform 0.6s cubic-bezier(0.25, 1, 0.5, 1)'; // 자연스러운 감속 곡선
-                child.style.transform = 'translateY(0)';
             });
         });
 
