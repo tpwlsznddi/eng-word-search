@@ -23,7 +23,6 @@
         .word-item { font-size: 14px; font-weight: bold; padding: 3px 6px; background: #e3f2fd; border-radius: 5px; transition: 0.3s; }
         .found { text-decoration: line-through; color: #aaa; background: transparent; }
 
-        /* 💡 모든 단어를 찾았을 때 나오는 축하 박스 디자인 */
         .success-box { background: white; border: 3px solid #4caf50; border-radius: 8px; padding: 15px; color: #4caf50; font-size: 18px; font-weight: bold; box-shadow: 0 4px 10px rgba(76, 175, 80, 0.2); width: 90%; margin: 0 auto; }
 
         #board-wrapper { display: flex; justify-content: center; align-items: center; width: 100%; margin-bottom: 20px; margin-top: 10px;}
@@ -62,9 +61,21 @@
             const nameInput = document.getElementById('playerName').value;
             if (nameInput.trim() === "") { alert("이름을 꼭 입력해 주세요!"); return; }
             myName = nameInput.trim();
+            
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('game-ui').style.display = 'block';
+            
             socket.emit('joinGame', myName);
+
+            // 💡 [버그 수정 핵심]: 로그인 창이 완전히 닫히고 격자판이 화면에 정상 크기로 렌더링된 직후 기존 선들을 다시 복구합니다!
+            if (localFoundLines && localFoundLines.length > 0) {
+                setTimeout(() => {
+                    document.querySelectorAll('.answer-line').forEach(el => el.remove());
+                    localFoundLines.forEach(line => {
+                        drawLine(line.startX, line.startY, line.endX, line.endY, line.color);
+                    });
+                }, 100);
+            }
         }
 
         socket.on('updatePlayers', (players) => {
@@ -80,7 +91,6 @@
             });
         });
 
-        // 💡 단어 리스트 그릴 때 완료 박스 로직 추가
         function drawWordList(words, foundWords) {
             const wordContainer = document.getElementById('word-list');
             wordContainer.innerHTML = '';
@@ -104,12 +114,13 @@
             grid = data.grid; targetWords = data.words; size = data.size || 10; localFoundLines = data.foundLines || [];
             drawWordList(data.words, data.foundWords);
             drawGrid();
-            if (localFoundLines.length > 0) {
+            
+            // 💡 이미 이름을 적고 로그인한 참가자 상태에서 퍼즐이 새로 갱신될 때만 즉시 선을 그립니다.
+            if (myName !== "" && localFoundLines.length > 0) {
                 setTimeout(() => { localFoundLines.forEach(line => { drawLine(line.startX, line.startY, line.endX, line.endY, line.color); }); }, 100);
             }
         });
 
-        // 💡 단어를 찾을 때 애니메이션 후 완료 박스 띄우기 로직 추가
         socket.on('wordFound', (word) => {
             const span = document.getElementById(`word-${word}`);
             if (span) {
@@ -208,10 +219,17 @@
             }
         }
 
-        socket.on('colorCells', (data) => { localFoundLines.push(data); drawLine(data.startX, data.startY, data.endX, data.endY, data.color); });
+        socket.on('colorCells', (data) => { 
+            localFoundLines.push(data); 
+            // 💡 로그인 창이 열려있을 때는 그리지 않고 장부에만 기록해 뒀다가 입장 시 한 번에 그립니다.
+            if (myName !== "") {
+                drawLine(data.startX, data.startY, data.endX, data.endY, data.color); 
+            }
+        });
 
         let resizeTimer;
         window.addEventListener('resize', () => {
+            if (myName === "") return;
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(() => {
                 document.querySelectorAll('.answer-line').forEach(el => el.remove());
