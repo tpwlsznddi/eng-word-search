@@ -23,17 +23,18 @@
         .save-btn { padding: 14px 20px; font-size: 16px; background-color: #673ab7; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; box-shadow: 0 4px 6px rgba(103,58,183,0.2); }
         .save-btn:hover { background-color: #512da8; }
 
-        /* 💡 새로 추가된 내 문제 보관함 스타일 */
         .storage-box { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 480px; box-sizing: border-box; text-align: left; }
         .puzzle-list { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; max-height: 500px; overflow-y: auto; }
         .puzzle-card { border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #fff; display: flex; flex-direction: column; gap: 8px; position: relative; }
-        .puzzle-card:hover { border-color: #673ab7; }
         .puzzle-title { font-size: 18px; font-weight: bold; color: #333; margin: 0; }
         .puzzle-meta { font-size: 13px; color: #777; margin: 0; }
-        .card-buttons { display: flex; gap: 8px; margin-top: 5px; }
+        .card-buttons { display: flex; gap: 6px; margin-top: 5px; }
         
         .play-btn { flex: 2; padding: 8px; background: #4caf50; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
         .play-btn:hover { background: #45a049; }
+        /* 💡 수정 버튼 디자인 추가 */
+        .edit-btn { flex: 1; padding: 8px; background: #2196f3; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .edit-btn:hover { background: #1976d2; }
         .delete-btn { flex: 1; padding: 8px; background: #f44336; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
         .delete-btn:hover { background: #d32f2f; }
     </style>
@@ -76,7 +77,6 @@
     <script>
         const socket = io();
         let wordsList = [];
-        // 💡 브라우저 저장소에서 기존에 저장된 퍼즐 리스트를 가져옵니다. 없으면 빈 배열.
         let savedPuzzles = JSON.parse(localStorage.getItem('myWordPuzzles')) || [];
 
         function handleKeyPress(event) {
@@ -134,7 +134,6 @@
             });
         }
 
-        // 💡 보관함 목록을 화면에 그려주는 함수
         function renderStorageList() {
             const storageContainer = document.getElementById('puzzleStorageList');
             storageContainer.innerHTML = "";
@@ -147,12 +146,14 @@
             savedPuzzles.forEach((puzzle, index) => {
                 const card = document.createElement('div');
                 card.className = 'puzzle-card';
+                // 💡 수정 버튼(loadPuzzleToEdit) UI 추가
                 card.innerHTML = `
                     <p class="puzzle-title">📌 ${puzzle.title}</p>
                     <p class="puzzle-meta">📏 크기: ${puzzle.size}x${puzzle.size} 칸 | 📝 단어 수: ${puzzle.words.length}개</p>
                     <p class="puzzle-meta" style="color: #888; font-size:12px;">단어들: ${puzzle.words.join(', ')}</p>
                     <div class="card-buttons">
-                        <button class="play-btn" onclick="sendPuzzleToGame(${index})">게임 시작 (화면 전송) 🚀</button>
+                        <button class="play-btn" onclick="sendPuzzleToGame(${index})">게임 시작 🚀</button>
+                        <button class="edit-btn" onclick="loadPuzzleToEdit(${index})">수정 ✏️</button>
                         <button class="delete-btn" onclick="deletePuzzleFromStorage(${index})">삭제 ❌</button>
                     </div>
                 `;
@@ -160,7 +161,6 @@
             });
         }
 
-        // 💡 퍼즐을 생성하여 중앙 화면으로 즉시 쏘지 않고 브라우저 보관함에 저장하는 로직
         function savePuzzleToStorage() {
             const titleElement = document.getElementById('titleInput');
             const sizeElement = document.getElementById('sizeInput');
@@ -173,45 +173,35 @@
             if (wordsList.length === 0) { alert("최소 1개 이상의 단어를 등록해 주세요!"); return; }
 
             for (let word of wordsList) {
-                if (word.length > size) {
-                    alert(`❌ 단어 '${word}'가 설정한 격자 크기(${size}칸)보다 깁니다!`);
-                    return;
-                }
+                if (word.length > size) { alert(`❌ 단어 '${word}'가 설정한 격자 크기(${size}칸)보다 깁니다!`); return; }
             }
 
-            // 격자판 알고리즘 작동 (기존과 동일)
             let grid = Array(size).fill(null).map(() => Array(size).fill(''));
             const directions = [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [-1, -1], [1, -1], [-1, 1]];
             let successfullyPlacedWords = [];
 
             for (let word of wordsList) {
-                let placed = false;
-                let attempts = 0;
+                let placed = false; let attempts = 0;
                 while (!placed && attempts < 100) {
                     attempts++;
-                    let startY = Math.floor(Math.random() * size);
-                    let startX = Math.floor(Math.random() * size);
+                    let startY = Math.floor(Math.random() * size); let startX = Math.floor(Math.random() * size);
                     let dir = directions[Math.floor(Math.random() * directions.length)];
-                    let endY = startY + dir[0] * (word.length - 1);
-                    let endX = startX + dir[1] * (word.length - 1);
+                    let endY = startY + dir[0] * (word.length - 1); let endX = startX + dir[1] * (word.length - 1);
 
                     if (endY < 0 || endY >= size || endX < 0 || endX >= size) continue;
 
                     let canPlace = true;
                     for (let i = 0; i < word.length; i++) {
-                        let cy = startY + dir[0] * i;
-                        let cx = startX + dir[1] * i;
+                        let cy = startY + dir[0] * i; let cx = startX + dir[1] * i;
                         if (grid[cy][cx] !== '' && grid[cy][cx] !== word[i]) { canPlace = false; break; }
                     }
 
                     if (canPlace) {
                         for (let i = 0; i < word.length; i++) {
-                            let cy = startY + dir[0] * i;
-                            let cx = startX + dir[1] * i;
+                            let cy = startY + dir[0] * i; let cx = startX + dir[1] * i;
                             grid[cy][cx] = word[i];
                         }
-                        successfullyPlacedWords.push(word);
-                        placed = true;
+                        successfullyPlacedWords.push(word); placed = true;
                     }
                 }
             }
@@ -223,36 +213,41 @@
                 }
             }
 
-            // 💡 오브젝트로 묶어서 리스트 배열에 추가
-            const newPuzzleObj = {
-                title: title,
-                grid: grid,
-                words: successfullyPlacedWords,
-                size: size
-            };
-
+            const newPuzzleObj = { title: title, grid: grid, words: successfullyPlacedWords, size: size };
             savedPuzzles.push(newPuzzleObj);
-            // 💡 브라우저 로컬 저장소에 영구 박제
             localStorage.setItem('myWordPuzzles', JSON.stringify(savedPuzzles));
 
-            // 입력창들 리셋
-            titleElement.value = "";
-            wordsList = [];
-            renderWordChips();
-            
-            // 보관함 목록 갱신
-            renderStorageList();
+            titleElement.value = ""; wordsList = [];
+            renderWordChips(); renderStorageList();
             alert(`💾 '${title}' 퍼즐이 내 보관함에 성공적으로 저장되었습니다!`);
         }
 
-        // 💡 보관함에서 [게임 시작]을 눌렀을 때 비로소 서버를 거쳐 전광판으로 쏴주는 함수
+        // 💡 새롭게 추가된 수정 모드 불러오기 함수
+        function loadPuzzleToEdit(index) {
+            const puzzle = savedPuzzles[index];
+            
+            if(confirm(`'${puzzle.title}' 퍼즐을 수정하시겠습니까?\n(불러오는 순간 보관함에 있던 원본은 지워집니다)`)) {
+                // 기존 데이터 입력창으로 쏙 빼오기
+                document.getElementById('titleInput').value = puzzle.title;
+                document.getElementById('sizeInput').value = puzzle.size;
+                wordsList = [...puzzle.words];
+                renderWordChips();
+                
+                // 보관함에서 삭제 (수정 후 다시 저장해야 함)
+                savedPuzzles.splice(index, 1);
+                localStorage.setItem('myWordPuzzles', JSON.stringify(savedPuzzles));
+                renderStorageList();
+                
+                alert("수정 모드로 불러왔습니다! 내용을 수정한 뒤 '내 보관함에 퍼즐 저장하기'를 다시 눌러주세요.");
+            }
+        }
+
         function sendPuzzleToGame(index) {
             const puzzle = savedPuzzles[index];
             socket.emit('newPuzzle', { grid: puzzle.grid, words: puzzle.words, size: puzzle.size });
-            alert(`🚀 '${puzzle.title}' 퍼즐을 모든 화면으로 전송했습니다! 대결을 시작하세요!`);
+            alert(`🚀 '${puzzle.title}' 퍼즐을 모든 화면으로 전송했습니다!`);
         }
 
-        // 💡 보관함에서 퍼즐 삭제하기
         function deletePuzzleFromStorage(index) {
             if (confirm(`'${savedPuzzles[index].title}' 퍼즐을 삭제하시겠습니까?`)) {
                 savedPuzzles.splice(index, 1);
@@ -261,7 +256,6 @@
             }
         }
 
-        // 초기 화면 구동 시 데이터 불러오기
         renderWordChips();
         renderStorageList();
     </script>
