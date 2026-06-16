@@ -5,28 +5,35 @@
     <title>중앙 문제 화면</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        /* 💡 화면 스크롤을 완전히 없애고 꽉 차게 만드는 마법의 CSS */
         body { font-family: sans-serif; margin: 0; padding: 0; background-color: #222; color: white; display: flex; height: 100vh; overflow: hidden; }
 
         /* ⬅️ 왼쪽 패널 (참가자 점수판) */
         #left-panel { width: 260px; min-width: 260px; background-color: #2a2a2a; border-right: 3px solid #444; padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; }
         #left-panel h3 { margin-top: 0; text-align: center; color: #4caf50; font-size: 22px; padding-bottom: 15px; border-bottom: 2px dashed #555; }
-        #player-list { display: flex; flex-direction: column; gap: 15px; margin-top: 10px; }
-        .player-badge { display: flex; flex-direction: column; align-items: center; padding: 15px; border-radius: 12px; font-weight: bold; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); font-size: 18px;}
+        
+        #player-list { display: flex; flex-direction: column; gap: 15px; margin-top: 10px; position: relative; }
+        
+        /* 💡 플레이어 배지에 애니메이션 기준 설정 */
+        .player-badge { 
+            display: flex; flex-direction: column; align-items: center; padding: 15px; border-radius: 12px; 
+            font-weight: bold; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); font-size: 18px; 
+            position: relative; z-index: 1;
+        }
         .player-score { font-size: 26px; margin-top: 8px; background: rgba(0,0,0,0.3); padding: 5px 20px; border-radius: 8px; }
 
         /* ➡️ 오른쪽 패널 (찾을 단어 리스트) */
         #right-panel { width: 260px; min-width: 260px; background-color: #2a2a2a; border-left: 3px solid #444; padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; }
         #right-panel h3 { margin-top: 0; text-align: center; color: #ff9800; font-size: 22px; padding-bottom: 15px; border-bottom: 2px dashed #555; }
+        
         #word-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-        .word-item { font-size: 20px; font-weight: bold; padding: 10px; background: #444; border-radius: 8px; text-align: center; transition: 0.3s; color: white; border: 2px solid transparent;}
-        .found { text-decoration: line-through; color: #777; background: transparent; border: 2px solid #555; }
+        
+        /* 💡 단어 배지 스타일 (사라지는 애니메이션을 위해 transition 유지) */
+        .word-item { font-size: 20px; font-weight: bold; padding: 10px; background: #444; border-radius: 8px; text-align: center; color: white; border: 2px solid transparent; transform-origin: center; }
 
         /* 🎯 중앙 패널 (메인 퍼즐) */
         #center-panel { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; background-color: #1a1a1a; }
         #center-panel h2 { margin: 0 0 15px 0; color: #2196f3; font-size: 28px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
 
-        /* 💡 최신 웹 기술(Container Queries)로 여백을 스스로 측정해 반응하는 마법 상자 */
         #board-wrapper { flex: 1; width: 100%; display: flex; justify-content: center; align-items: center; container-type: size; }
 
         #puzzle-grid {
@@ -35,11 +42,8 @@
             background-color: #333;
             z-index: 0;
             display: grid;
-            
-            /* 💡 부모의 가로(cqw)와 세로(cqh) 중 '더 짧은 쪽'에 100% 딱 맞게 정사각형으로 조절! */
             width: min(100cqw, 100cqh);
             height: min(100cqw, 100cqh);
-            
             box-sizing: border-box;
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
@@ -53,7 +57,6 @@
             justify-content: center;
             font-weight: bold;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-            /* 자바스크립트 없이 폰트 크기까지 자동 조절 (판 크기에 비례) */
             font-size: calc(min(100cqw, 100cqh) / var(--grid-size, 10) * 0.55);
         }
 
@@ -62,7 +65,7 @@
 </head>
 <body>
     <div id="left-panel">
-        <h3>🏆 참가 팀 (점수)</h3>
+        <h3>🏆 현재 순위</h3>
         <div id="player-list"><span style="color: gray; text-align: center;">대기 중...</span></div>
     </div>
 
@@ -72,7 +75,7 @@
     </div>
 
     <div id="right-panel">
-        <h3>🔍 찾을 단어</h3>
+        <h3>🔍 남은 단어</h3>
         <div id="word-list"><span style="color: gray; text-align: center;">대기 중...</span></div>
     </div>
 
@@ -84,32 +87,91 @@
 
         socket.on('updatePlayers', (players) => {
             const listElement = document.getElementById('player-list');
-            listElement.innerHTML = '';
+            
             if (players.length === 0) {
                 listElement.innerHTML = '<span style="color: gray; text-align: center;">대기 중...</span>';
                 return;
             }
+
+            // 💡 1. 점수가 높은 순서대로(내림차순) 정렬
+            players.sort((a, b) => b.score - a.score);
+
+            // '대기 중...' 텍스트가 있으면 제거
+            if (listElement.querySelector('span')) {
+                listElement.innerHTML = '';
+            }
+
+            // 💡 2. 순위 변경 애니메이션을 위해 현재 위치(Y좌표)를 기록합니다 (FLIP 기법: First)
+            const oldPositions = {};
+            Array.from(listElement.children).forEach(child => {
+                oldPositions[child.id] = child.getBoundingClientRect().top;
+            });
+
+            // 💡 3. 정렬된 순서대로 HTML 요소를 업데이트하거나 새로 만듭니다.
             players.forEach(p => {
-                const badge = document.createElement('div');
-                badge.className = 'player-badge';
-                badge.style.backgroundColor = p.color;
+                let badge = document.getElementById(`player-${p.id}`);
+                if (!badge) {
+                    badge = document.createElement('div');
+                    badge.id = `player-${p.id}`;
+                    badge.className = 'player-badge';
+                    badge.style.backgroundColor = p.color;
+                }
                 badge.innerHTML = `<span>${p.name}</span><div class="player-score">${p.score} 점</div>`;
-                listElement.appendChild(badge);
+                
+                // appendChild를 하면 요소가 자연스럽게 새 랭킹 위치로 이동합니다.
+                listElement.appendChild(badge); 
+            });
+
+            // 나간 플레이어의 배지 삭제
+            const currentIds = players.map(p => `player-${p.id}`);
+            Array.from(listElement.children).forEach(child => {
+                if (!currentIds.includes(child.id)) {
+                    child.remove();
+                }
+            });
+
+            // 💡 4. 변경된 위치와 예전 위치를 비교해서 애니메이션을 줍니다 (FLIP 기법: Last, Invert, Play)
+            Array.from(listElement.children).forEach(child => {
+                const oldTop = oldPositions[child.id];
+                if (oldTop !== undefined) {
+                    const newTop = child.getBoundingClientRect().top;
+                    const deltaY = oldTop - newTop;
+
+                    // 위치가 바뀌었다면(순위 변동이 일어났다면)
+                    if (deltaY !== 0) {
+                        // 애니메이션을 끄고 강제로 예전 위치로 끌어올립니다.
+                        child.style.transform = `translateY(${deltaY}px)`;
+                        child.style.transition = 'none';
+
+                        // 0.01초 뒤에 애니메이션을 켜고 원래 자리로 스르륵 내려오게 합니다.
+                        requestAnimationFrame(() => {
+                            requestAnimationFrame(() => {
+                                child.style.transform = '';
+                                child.style.transition = 'transform 0.5s cubic-bezier(0.25, 1, 0.5, 1)';
+                            });
+                        });
+                    }
+                }
             });
         });
 
+        // 💡 단어 리스트 그리기 로직 변경
         function drawWordList(words, foundWords) {
             const wordContainer = document.getElementById('word-list');
             wordContainer.innerHTML = '';
-            if (words.length === 0) {
-                wordContainer.innerHTML = '<span style="color: gray; text-align: center;">대기 중...</span>';
+            
+            // 이미 찾은 단어는 리스트에서 제외(필터링)하고 그립니다.
+            const remainingWords = words.filter(w => !(foundWords && foundWords.includes(w)));
+            
+            if (remainingWords.length === 0) {
+                wordContainer.innerHTML = '<span style="color: #4caf50; font-size: 16px; text-align: center; margin-top: 20px; font-weight: bold;">모든 단어를 찾았습니다! 🎉</span>';
                 return;
             }
-            words.forEach(word => {
-                const span = document.createElement('div'); // 리스트 형태라 div 사용
+            
+            remainingWords.forEach(word => {
+                const span = document.createElement('div');
                 span.id = `word-${word}`;
                 span.className = 'word-item';
-                if (foundWords && foundWords.includes(word)) span.classList.add('found');
                 span.innerText = word;
                 wordContainer.appendChild(span);
             });
@@ -131,9 +193,26 @@
             }
         });
 
+        // 💡 단어를 찾았을 때의 처리 방식 변경 (사라지는 애니메이션 효과)
         socket.on('wordFound', (word) => {
             const span = document.getElementById(`word-${word}`);
-            if (span) span.classList.add('found');
+            if (span) {
+                // 작아지면서 투명해지는 예쁜 애니메이션 적용
+                span.style.transition = 'all 0.4s ease-out';
+                span.style.opacity = '0';
+                span.style.transform = 'scale(0.5)';
+                
+                // 애니메이션이 끝난 후(0.4초 뒤) HTML에서 완전히 지워버림
+                setTimeout(() => {
+                    span.remove();
+                    
+                    // 만약 단어를 다 지워서 리스트가 텅 비게 되었다면 축하 메시지 출력
+                    const wordContainer = document.getElementById('word-list');
+                    if (wordContainer.children.length === 0) {
+                        wordContainer.innerHTML = '<span style="color: #4caf50; font-size: 16px; text-align: center; margin-top: 20px; font-weight: bold;">모든 단어를 찾았습니다! 🎉</span>';
+                    }
+                }, 400);
+            }
         });
 
         function drawGrid() {
@@ -143,11 +222,8 @@
             let gridElement = document.createElement('div');
             gridElement.id = 'puzzle-grid';
             
-            // 칸 개수에 맞게 Grid 나누기
             gridElement.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
             gridElement.style.gridTemplateRows = `repeat(${size}, 1fr)`;
-            
-            // 💡 CSS에 현재 격자 크기(size)를 변수로 전달해서 폰트 크기 자동 조절에 사용!
             gridElement.style.setProperty('--grid-size', size);
             
             for (let y = 0; y < size; y++) {
@@ -196,7 +272,6 @@
             drawLine(data.startX, data.startY, data.endX, data.endY, data.color);
         });
 
-        // 인터넷 창 크기를 마우스로 잡고 늘렸다 줄였다 할 때 선을 다시 그리는 로직
         let resizeTimer;
         window.addEventListener('resize', () => {
             clearTimeout(resizeTimer);
