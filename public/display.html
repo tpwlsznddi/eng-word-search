@@ -5,70 +5,37 @@
     <title>중앙 문제 화면</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        /* 화면 스크롤을 완전히 없애고 3단 분할 꽉 차게 만드는 설정 */
         body { font-family: sans-serif; margin: 0; padding: 0; background-color: #222; color: white; display: flex; height: 100vh; overflow: hidden; }
 
-        /* ⬅️ 왼쪽 패널 (실시간 랭킹 순위표) */
         #left-panel { width: 290px; min-width: 290px; background-color: #2a2a2a; border-right: 3px solid #444; padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; }
         #left-panel h3 { margin-top: 0; text-align: center; color: #4caf50; font-size: 22px; padding-bottom: 15px; border-bottom: 2px dashed #555; margin-bottom: 20px; }
         
-        /* 절대 좌표 애니메이션을 위한 기준점 설정 */
         #player-list { position: relative; width: 100%; margin-top: 5px; }
         
-        /* position을 absolute로 설정하여 박스가 실제 물리적으로 아래위로 슬라이딩 무빙 하도록 세팅 */
         .player-badge { 
-            position: absolute;
-            left: 0;
-            width: 100%;
-            height: 70px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            padding: 0 15px; 
-            border-radius: 12px; 
-            color: white; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
-            box-sizing: border-box;
-            
-            /* 좌표가 바뀔 때 0.6초간 스프링처럼 탱글하고 매끄럽게 교차 이동시키는 연출 곡선 */
-            transition: top 0.6s cubic-bezier(0.25, 1, 0.5, 1); 
-            will-change: top;
+            position: absolute; left: 0; width: 100%; height: 70px; display: flex; align-items: center; justify-content: space-between; 
+            padding: 0 15px; border-radius: 12px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); box-sizing: border-box;
+            transition: top 0.6s cubic-bezier(0.25, 1, 0.5, 1); will-change: top;
         }
 
-        /* ➡️ 오른쪽 패널 (찾을 단어 리스트) */
         #right-panel { width: 260px; min-width: 260px; background-color: #2a2a2a; border-left: 3px solid #444; padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; }
         #right-panel h3 { margin-top: 0; text-align: center; color: #ff9800; font-size: 22px; padding-bottom: 15px; border-bottom: 2px dashed #555; }
         #word-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
         .word-item { font-size: 20px; font-weight: bold; padding: 10px; background: #444; border-radius: 8px; text-align: center; color: white; }
 
-        /* 🎯 중앙 패널 (메인 퍼즐) */
         #center-panel { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; background-color: #1a1a1a; }
         #center-panel h2 { margin: 0 0 15px 0; color: #2196f3; font-size: 28px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
 
         #board-wrapper { flex: 1; width: 100%; display: flex; justify-content: center; align-items: center; container-type: size; }
 
         #puzzle-grid {
-            position: relative;
-            border: 4px solid #fff;
-            background-color: #333;
-            z-index: 0;
-            display: grid;
-            width: min(100cqw, 100cqh);
-            height: min(100cqw, 100cqh);
-            box-sizing: border-box;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: relative; border: 4px solid #fff; background-color: #333; z-index: 0; display: grid;
+            width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); box-sizing: border-box; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
 
         .cell {
-            position: relative;
-            z-index: 2;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-            font-size: calc(min(100cqw, 100cqh) / var(--grid-size, 10) * 0.55);
+            position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5); font-size: calc(min(100cqw, 100cqh) / var(--grid-size, 10) * 0.55);
         }
 
         .answer-line { position: absolute; border-radius: 50px; opacity: 0.9; z-index: 1; pointer-events: none; transition: all 0.5s ease; box-shadow: inset 0 0 10px rgba(0,0,0,0.2); }
@@ -76,17 +43,13 @@
 </head>
 <body>
     <div id="left-panel">
-        <h3 id="ranking-title">🏆 애니메이션 순위표 (V2)</h3>
-        <div id="player-list">
-            <span id="waiting-msg" style="color: gray; text-align: center; width: 100%; display: block;">대기 중...</span>
-        </div>
+        <h3 id="ranking-title">🏆 명예의 전당 (Top 3)</h3>
+        <div id="player-list"><span id="waiting-msg" style="color: gray; text-align: center; width: 100%; display: block;">대기 중...</span></div>
     </div>
-
     <div id="center-panel">
         <h2>📺 단어 찾기 퍼즐</h2>
         <div id="board-wrapper"></div>
     </div>
-
     <div id="right-panel">
         <h3>🔍 남은 단어</h3>
         <div id="word-list"><span style="color: gray; text-align: center;">대기 중...</span></div>
@@ -106,20 +69,21 @@
                 return;
             }
 
-            // 대기 메시지 엘리먼트 격파
             const waitingMsg = document.getElementById('waiting-msg');
             if (waitingMsg) waitingMsg.remove();
 
-            // 점수 기준 완벽 정렬 (동점 발생 시 글자 순서 정렬)
+            // 점수 정렬
             players.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+
+            // 💡 핵심: 정렬된 참가자 중 딱 위에서 3명(Top 3)만 잘라서 가져옵니다!
+            const topPlayers = players.slice(0, 3);
 
             const itemHeight = 70; 
             const gap = 15;        
             
-            listElement.style.height = `${players.length * (itemHeight + gap)}px`;
+            listElement.style.height = `${topPlayers.length * (itemHeight + gap)}px`;
 
-            // 고유한 절대 top 좌표 주입 및 랭킹 엠블럼 생성
-            players.forEach((p, index) => {
+            topPlayers.forEach((p, index) => {
                 let badge = document.getElementById(`player-${p.id}`);
                 
                 if (!badge) {
@@ -131,10 +95,7 @@
                 }
                 
                 const rank = index + 1;
-                let rankText = `${rank}등`;
-                if (rank === 1) rankText = '🥇 1등';
-                else if (rank === 2) rankText = '🥈 2등';
-                else if (rank === 3) rankText = '🥉 3등';
+                let rankText = rank === 1 ? '🥇 1등' : rank === 2 ? '🥈 2등' : '🥉 3등';
 
                 badge.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 10px;">
@@ -144,14 +105,13 @@
                     <div style="font-size: 22px; background: rgba(0,0,0,0.25); padding: 4px 12px; border-radius: 6px; font-weight: bold;">${p.score}점</div>
                 `;
                 
-                // Y축 절대 위치 조절하여 매끄러운 트랜지션 무빙 연출
                 badge.style.top = `${index * (itemHeight + gap)}px`;
             });
 
-            // 나간 사람 클리닝
-            const currentIds = players.map(p => `player-${p.id}`);
+            // 💡 나간 사람 + 3등 밖으로 밀려난 사람의 배지를 깔끔하게 지워줌
+            const currentTopIds = topPlayers.map(p => `player-${p.id}`);
             Array.from(listElement.children).forEach(child => {
-                if (child.id && child.id.startsWith('player-') && !currentIds.includes(child.id)) {
+                if (child.id && child.id.startsWith('player-') && !currentTopIds.includes(child.id)) {
                     child.remove();
                 }
             });
@@ -160,7 +120,6 @@
         function drawWordList(words, foundWords) {
             const wordContainer = document.getElementById('word-list');
             wordContainer.innerHTML = '';
-            
             const remainingWords = words.filter(w => !(foundWords && foundWords.includes(w)));
             
             if (remainingWords.length === 0) {
@@ -185,11 +144,7 @@
             drawGrid();
 
             if (localFoundLines.length > 0) {
-                setTimeout(() => {
-                    localFoundLines.forEach(line => {
-                        drawLine(line.startX, line.startY, line.endX, line.endY, line.color);
-                    });
-                }, 100);
+                setTimeout(() => { localFoundLines.forEach(line => { drawLine(line.startX, line.startY, line.endX, line.endY, line.color); }); }, 100);
             }
         });
 
@@ -212,10 +167,8 @@
         function drawGrid() {
             const boardWrapper = document.getElementById('board-wrapper');
             boardWrapper.innerHTML = '';
-            
             let gridElement = document.createElement('div');
             gridElement.id = 'puzzle-grid';
-            
             gridElement.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
             gridElement.style.gridTemplateRows = `repeat(${size}, 1fr)`;
             gridElement.style.setProperty('--grid-size', size);
@@ -236,7 +189,6 @@
             const startCell = document.getElementById(`cell-${startY}-${startX}`);
             const endCell = document.getElementById(`cell-${endY}-${endX}`);
             const gridElement = document.getElementById('puzzle-grid');
-
             if (!startCell || !endCell) return;
 
             const x1 = startCell.offsetLeft + (startCell.offsetWidth / 2);
@@ -257,7 +209,6 @@
             line.style.left = `${cx - length / 2}px`;
             line.style.top = `${cy - startCell.offsetHeight / 2}px`;
             line.style.transform = `rotate(${angle}deg)`;
-
             gridElement.appendChild(line);
         }
 
@@ -271,9 +222,7 @@
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(() => {
                 document.querySelectorAll('.answer-line').forEach(el => el.remove());
-                localFoundLines.forEach(line => {
-                    drawLine(line.startX, line.startY, line.endX, line.endY, line.color);
-                });
+                localFoundLines.forEach(line => { drawLine(line.startX, line.startY, line.endX, line.endY, line.color); });
             }, 300);
         });
     </script>
