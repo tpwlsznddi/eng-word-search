@@ -3,170 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>방장 전용 (문제 생성)</title>
+    <title>방장 전용 (문제 관리 대시보드)</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; margin: 0; }
-        .maker-box { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: inline-block; text-align: left; width: 90%; max-width: 450px; box-sizing: border-box; }
+        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; margin: 0; display: flex; flex-direction: column; align-items: center; }
+        .container { display: flex; gap: 20px; width: 100%; max-width: 1000px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
         
+        .maker-box { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 450px; box-sizing: border-box; text-align: left; }
         .input-group { margin-bottom: 15px; }
         label { font-weight: bold; color: #555; display: block; margin-bottom: 5px; font-size: 14px; }
         
         input[type="text"] { padding: 12px; font-size: 16px; width: 100%; border: 2px solid #673ab7; border-radius: 6px; box-sizing: border-box; }
         input[type="number"] { padding: 10px; font-size: 16px; width: 80px; border: 2px solid #673ab7; border-radius: 6px; text-align: center; }
         
-        /* 💡 추가된 단어 리스트 스타일 */
-        .word-list-container { border: 2px dashed #ccc; border-radius: 8px; padding: 10px; min-height: 60px; margin-bottom: 20px; background: #fafafa; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
-        .word-chip { display: inline-flex; align-items: center; background: #e8def8; color: #673ab7; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .chip-btn { background: none; border: none; cursor: pointer; margin-left: 6px; font-size: 12px; padding: 2px; }
-        .chip-btn:hover { transform: scale(1.2); }
+        .word-list-container { border: 2px dashed #ccc; border-radius: 8px; padding: 10px; min-height: 60px; margin-bottom: 20px; background: #fafafa; display: flex; flex-wrap: wrap; gap: 8px; }
+        .word-chip { display: inline-flex; align-items: center; background: #e8def8; color: #673ab7; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; }
+        .chip-btn { background: none; border: none; cursor: pointer; margin-left: 6px; font-size: 12px; }
 
-        .submit-btn { padding: 14px 20px; font-size: 16px; background-color: #673ab7; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; box-shadow: 0 4px 6px rgba(103,58,183,0.2); }
-        .submit-btn:hover { background-color: #512da8; }
+        .save-btn { padding: 14px 20px; font-size: 16px; background-color: #673ab7; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; box-shadow: 0 4px 6px rgba(103,58,183,0.2); }
+        .save-btn:hover { background-color: #512da8; }
+
+        /* 💡 새로 추가된 내 문제 보관함 스타일 */
+        .storage-box { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 480px; box-sizing: border-box; text-align: left; }
+        .puzzle-list { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; max-height: 500px; overflow-y: auto; }
+        .puzzle-card { border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #fff; display: flex; flex-direction: column; gap: 8px; position: relative; }
+        .puzzle-card:hover { border-color: #673ab7; }
+        .puzzle-title { font-size: 18px; font-weight: bold; color: #333; margin: 0; }
+        .puzzle-meta { font-size: 13px; color: #777; margin: 0; }
+        .card-buttons { display: flex; gap: 8px; margin-top: 5px; }
+        
+        .play-btn { flex: 2; padding: 8px; background: #4caf50; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .play-btn:hover { background: #45a049; }
+        .delete-btn { flex: 1; padding: 8px; background: #f44336; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .delete-btn:hover { background: #d32f2f; }
     </style>
 </head>
 <body>
-    <div class="maker-box">
-        <h2 style="color: #673ab7; text-align: center; margin-top: 0; margin-bottom: 20px;">🛠️ 문제 출제 (방장)</h2>
-        
-        <div class="input-group">
-            <label for="sizeInput">1. 격자 크기 (5 ~ 100):</label>
-            <input type="number" id="sizeInput" value="10" min="5" max="100"> 칸
+
+    <h1 style="color: #673ab7; margin-bottom: 30px; font-size: 28px;">🎮 퍼즐 게임 관리 대시보드</h1>
+
+    <div class="container">
+        <div class="maker-box">
+            <h2 style="color: #673ab7; margin-top: 0; margin-bottom: 20px; text-align: center;">📝 새 퍼즐 만들기</h2>
+            
+            <div class="input-group">
+                <label for="titleInput">1. 퍼즐 제목 (예: 1라운드 - 동물 이름):</label>
+                <input type="text" id="titleInput" placeholder="제목을 입력하세요">
+            </div>
+
+            <div class="input-group">
+                <label for="sizeInput">2. 격자 크기 (5 ~ 100):</label>
+                <input type="number" id="sizeInput" value="10" min="5" max="100"> 칸
+            </div>
+
+            <div class="input-group">
+                <label for="wordInput">3. 단어 입력 (Enter를 누르면 추가됩니다):</label>
+                <input type="text" id="wordInput" placeholder="영어 단어 입력 후 Enter" onkeydown="handleKeyPress(event)">
+            </div>
+            
+            <label>4. 현재 등록된 단어 목록:</label>
+            <div class="word-list-container" id="uiWordList"></div>
+            
+            <button class="save-btn" onclick="savePuzzleToStorage()">내 보관함에 퍼즐 저장하기 💾</button>
         </div>
 
-        <div class="input-group">
-            <label for="wordInput">2. 숨길 단어 입력 (엔터를 누르면 추가됩니다):</label>
-            <input type="text" id="wordInput" placeholder="영어 단어 입력 후 Enter" onkeydown="handleKeyPress(event)">
+        <div class="storage-box">
+            <h2 style="color: #4caf50; margin-top: 0; margin-bottom: 20px; text-align: center;">📦 내 문제 보관함</h2>
+            <div class="puzzle-list" id="puzzleStorageList"></div>
         </div>
-        
-        <label>3. 등록된 단어 목록 (수정/삭제 가능):</label>
-        <div class="word-list-container" id="uiWordList"></div>
-        
-        <button class="submit-btn" onclick="generatePuzzle()">퍼즐 만들기 및 전송 🚀</button>
     </div>
 
     <script>
         const socket = io();
-        let wordsList = []; // 💡 단어들을 저장할 배열
+        let wordsList = [];
+        // 💡 브라우저 저장소에서 기존에 저장된 퍼즐 리스트를 가져옵니다. 없으면 빈 배열.
+        let savedPuzzles = JSON.parse(localStorage.getItem('myWordPuzzles')) || [];
 
-        // 💡 엔터키 입력을 감지하는 함수 (PC 및 모바일 키보드 완료/엔터 대응)
         function handleKeyPress(event) {
             if (event.key === 'Enter') {
-                event.preventDefault(); // 기본 엔터 동작(새로고침 등) 방지
+                event.preventDefault();
                 addWordFromInput();
             }
         }
 
-        // 입력창의 단어를 리스트에 추가
         function addWordFromInput() {
             const inputElement = document.getElementById('wordInput');
             let word = inputElement.value.toUpperCase().trim();
-            
             if (word === "") return;
-            
-            // 영어 알파벳만 입력했는지 유효성 검사
-            if (/[^A-Z]/.test(word)) {
-                alert("영어 알파벳만 입력할 수 있습니다!");
-                return;
-            }
-            
-            if (wordsList.includes(word)) {
-                alert("이미 등록된 단어입니다!");
-                return;
-            }
+            if (/[^A-Z]/.test(word)) { alert("영어 알파벳만 입력할 수 있습니다!"); return; }
+            if (wordsList.includes(word)) { alert("이미 등록된 단어입니다!"); return; }
 
             wordsList.push(word);
-            inputElement.value = ""; // 입력창 비우기
-            renderWordChips();      // 리스트 새로고침
+            inputElement.value = "";
+            renderWordChips();
         }
 
-        // 단어 삭제 기능
         function removeWord(index) {
             wordsList.splice(index, 1);
             renderWordChips();
         }
 
-        // 단어 수정 기능
         function editWord(index) {
             const currentWord = wordsList[index];
             const newWord = prompt("단어를 수정해 주세요:", currentWord);
-            
             if (newWord !== null) {
                 let formatted = newWord.toUpperCase().trim();
                 if (formatted === "") return;
-                if (/[^A-Z]/.test(formatted)) {
-                    alert("영어 알파벳만 입력 가능합니다.");
-                    return;
-                }
+                if (/[^A-Z]/.test(formatted)) { alert("영어 알파벳만 입력 가능합니다."); return; }
                 wordsList[index] = formatted;
                 renderWordChips();
             }
         }
 
-        // 화면에 단어 칩들을 그려주는 기능
         function renderWordChips() {
             const container = document.getElementById('uiWordList');
             container.innerHTML = "";
-            
             if (wordsList.length === 0) {
                 container.innerHTML = '<span style="color: #aaa; font-size: 13px; margin: auto;">등록된 단어가 없습니다.</span>';
                 return;
             }
-
             wordsList.forEach((word, index) => {
                 const chip = document.createElement('div');
                 chip.className = 'word-chip';
                 chip.innerHTML = `
                     <span>${word}</span>
-                    <button class="chip-btn" onclick="editWord(${index})" title="수정">✏️</button>
-                    <button class="chip-btn" onclick="removeWord(${index})" title="삭제">❌</button>
+                    <button class="chip-btn" onclick="editWord(${index})">✏️</button>
+                    <button class="chip-btn" onclick="removeWord(${index})">❌</button>
                 `;
                 container.appendChild(chip);
             });
         }
 
-        // 초기 화면 정렬
-        renderWordChips();
+        // 💡 보관함 목록을 화면에 그려주는 함수
+        function renderStorageList() {
+            const storageContainer = document.getElementById('puzzleStorageList');
+            storageContainer.innerHTML = "";
 
-        function generatePuzzle() {
-            const size = parseInt(document.getElementById('sizeInput').value) || 10;
-
-            if (size < 5 || size > 100) {
-                alert("크기는 5칸부터 최대 100칸까지만 설정할 수 있습니다!");
-                return;
-            }
-            if (wordsList.length === 0) {
-                alert("최소 한 개 이상의 단어를 등록해 주세요!");
+            if (savedPuzzles.length === 0) {
+                storageContainer.innerHTML = '<span style="color: #aaa; font-size: 14px; text-align: center; margin: 40px 0;">보관함이 비어있습니다. 미리 문제를 만들어 저장해 보세요!</span>';
                 return;
             }
 
-            // 격자 크기보다 긴 단어가 있는지 검사
+            savedPuzzles.forEach((puzzle, index) => {
+                const card = document.createElement('div');
+                card.className = 'puzzle-card';
+                card.innerHTML = `
+                    <p class="puzzle-title">📌 ${puzzle.title}</p>
+                    <p class="puzzle-meta">📏 크기: ${puzzle.size}x${puzzle.size} 칸 | 📝 단어 수: ${puzzle.words.length}개</p>
+                    <p class="puzzle-meta" style="color: #888; font-size:12px;">단어들: ${puzzle.words.join(', ')}</p>
+                    <div class="card-buttons">
+                        <button class="play-btn" onclick="sendPuzzleToGame(${index})">게임 시작 (화면 전송) 🚀</button>
+                        <button class="delete-btn" onclick="deletePuzzleFromStorage(${index})">삭제 ❌</button>
+                    </div>
+                `;
+                storageContainer.appendChild(card);
+            });
+        }
+
+        // 💡 퍼즐을 생성하여 중앙 화면으로 즉시 쏘지 않고 브라우저 보관함에 저장하는 로직
+        function savePuzzleToStorage() {
+            const titleElement = document.getElementById('titleInput');
+            const sizeElement = document.getElementById('sizeInput');
+            
+            let title = titleElement.value.trim();
+            let size = parseInt(sizeElement.value) || 10;
+
+            if (title === "") { alert("퍼즐 제목을 꼭 입력해 주세요!"); return; }
+            if (size < 5 || size > 100) { alert("크기는 5~100칸 사이만 가능합니다."); return; }
+            if (wordsList.length === 0) { alert("최소 1개 이상의 단어를 등록해 주세요!"); return; }
+
             for (let word of wordsList) {
                 if (word.length > size) {
-                    alert(`❌ 단어 '${word}'의 길이가 설정한 격자 크기(${size}칸)보다 깁니다! 단어를 수정하거나 격자 크기를 늘려주세요.`);
+                    alert(`❌ 단어 '${word}'가 설정한 격자 크기(${size}칸)보다 깁니다!`);
                     return;
                 }
             }
 
+            // 격자판 알고리즘 작동 (기존과 동일)
             let grid = Array(size).fill(null).map(() => Array(size).fill(''));
-
-            const directions = [
-                [0, 1], [0, -1], [1, 0], [-1, 0],
-                [1, 1], [-1, -1], [1, -1], [-1, 1]
-            ];
-
+            const directions = [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [-1, -1], [1, -1], [-1, 1]];
             let successfullyPlacedWords = [];
 
             for (let word of wordsList) {
                 let placed = false;
                 let attempts = 0;
-
                 while (!placed && attempts < 100) {
                     attempts++;
                     let startY = Math.floor(Math.random() * size);
                     let startX = Math.floor(Math.random() * size);
                     let dir = directions[Math.floor(Math.random() * directions.length)];
-
                     let endY = startY + dir[0] * (word.length - 1);
                     let endX = startX + dir[1] * (word.length - 1);
 
@@ -176,10 +201,7 @@
                     for (let i = 0; i < word.length; i++) {
                         let cy = startY + dir[0] * i;
                         let cx = startX + dir[1] * i;
-                        if (grid[cy][cx] !== '' && grid[cy][cx] !== word[i]) {
-                            canPlace = false;
-                            break;
-                        }
+                        if (grid[cy][cx] !== '' && grid[cy][cx] !== word[i]) { canPlace = false; break; }
                     }
 
                     if (canPlace) {
@@ -197,15 +219,51 @@
             const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             for (let y = 0; y < size; y++) {
                 for (let x = 0; x < size; x++) {
-                    if (grid[y][x] === '') {
-                        grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)];
-                    }
+                    if (grid[y][x] === '') grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)];
                 }
             }
 
-            socket.emit('newPuzzle', { grid: grid, words: successfullyPlacedWords, size: size });
-            alert(`✅ ${size}x${size} 크기의 퍼즐이 전송되었습니다!`);
+            // 💡 오브젝트로 묶어서 리스트 배열에 추가
+            const newPuzzleObj = {
+                title: title,
+                grid: grid,
+                words: successfullyPlacedWords,
+                size: size
+            };
+
+            savedPuzzles.push(newPuzzleObj);
+            // 💡 브라우저 로컬 저장소에 영구 박제
+            localStorage.setItem('myWordPuzzles', JSON.stringify(savedPuzzles));
+
+            // 입력창들 리셋
+            titleElement.value = "";
+            wordsList = [];
+            renderWordChips();
+            
+            // 보관함 목록 갱신
+            renderStorageList();
+            alert(`💾 '${title}' 퍼즐이 내 보관함에 성공적으로 저장되었습니다!`);
         }
+
+        // 💡 보관함에서 [게임 시작]을 눌렀을 때 비로소 서버를 거쳐 전광판으로 쏴주는 함수
+        function sendPuzzleToGame(index) {
+            const puzzle = savedPuzzles[index];
+            socket.emit('newPuzzle', { grid: puzzle.grid, words: puzzle.words, size: puzzle.size });
+            alert(`🚀 '${puzzle.title}' 퍼즐을 모든 화면으로 전송했습니다! 대결을 시작하세요!`);
+        }
+
+        // 💡 보관함에서 퍼즐 삭제하기
+        function deletePuzzleFromStorage(index) {
+            if (confirm(`'${savedPuzzles[index].title}' 퍼즐을 삭제하시겠습니까?`)) {
+                savedPuzzles.splice(index, 1);
+                localStorage.setItem('myWordPuzzles', JSON.stringify(savedPuzzles));
+                renderStorageList();
+            }
+        }
+
+        // 초기 화면 구동 시 데이터 불러오기
+        renderWordChips();
+        renderStorageList();
     </script>
 </body>
 </html>
